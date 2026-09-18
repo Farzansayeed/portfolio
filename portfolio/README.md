@@ -2,7 +2,7 @@
 
 Single-page developer portfolio. Hand-written HTML, CSS, and JavaScript with a Three.js wave-field hero — no framework, no npm/build dependencies. External resources are two CDN loads (Inter font, Three.js module) and nothing else.
 
-**Live:** deployed as a static site on Vercel (URL added after first deploy)
+**Live:** https://portfolio-farzan4.vercel.app
 
 ## Stack
 
