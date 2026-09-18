@@ -18,6 +18,10 @@ const CLASSIC_TOKEN = process.env.EDGE_CONFIG_READ_WRITE_TOKEN;
 const GC_DESCRIPTOR = process.env.GLOBAL_CONFIG; // https://global-config.vercel.com/ecfg_...?token=...
 const GC_BASE = process.env.EDGE_CONFIG_API || "https://global-config.vercel.com";
 const CLASSIC_BASE = process.env.EDGE_CONFIG_API_CLASSIC || "https://api.vercel.com";
+// Writes: Global Config store tokens are read-only, so saves go through
+// Vercel's authenticated REST API with an account-scoped API token instead.
+const API_TOKEN = process.env.VERCEL_API_TOKEN;
+const TEAM_ID = process.env.VERCEL_TEAM_ID;
 
 function gcInfo() {
   if (!GC_DESCRIPTOR) return null;
@@ -26,7 +30,7 @@ function gcInfo() {
     const id = url.pathname.split("/").pop();
     const readToken = url.searchParams.get("token");
     if (!id || !id.startsWith("ecfg_")) return null;
-    return { id, readToken, writeToken: process.env.GLOBAL_CONFIG_WRITE_TOKEN || null };
+    return { id, readToken };
   } catch {
     return null;
   }
@@ -78,15 +82,18 @@ async function classicRead() {
 // ---------- writes ----------
 
 async function gcWrite(info, content) {
-  // New model: PATCH the items batch endpoint. Works when the descriptor's
-  // token is read-write; read-only tokens are rejected by the API (401/403).
-  const headers = { "Content-Type": "application/json" };
-  if (info.writeToken) headers.Authorization = `Bearer ${info.writeToken}`;
+  // Global Config model: PATCH the items batch endpoint via Vercel's REST API
+  // (account token). Store-level tokens are read-only by design.
+  if (!API_TOKEN) return false;
   const res = await fetchT(
-    `${GC_BASE}/${info.id}/items${info.writeToken ? "?token=" + info.writeToken : ""}`,
+    `https://api.vercel.com/v1/global-config/${info.id}/items` +
+      (TEAM_ID ? `?teamId=${TEAM_ID}` : ""),
     {
       method: "PATCH",
-      headers,
+      headers: {
+        Authorization: `Bearer ${API_TOKEN}`,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         items: [{ operation: "upsert", key: "portfolio_content", value: content }],
       }),
@@ -134,7 +141,7 @@ export default async function handler(req, res) {
     }
     const gc = gcInfo();
     const hasStore = !!(gc || CLASSIC_ID);
-    const hasWriteCred = !!(gc?.writeToken || CLASSIC_TOKEN);
+    const hasWriteCred = !!(API_TOKEN || CLASSIC_TOKEN);
     if (!hasStore) {
       return json(res, 503, {
         ok: false,
@@ -176,7 +183,7 @@ export default async function handler(req, res) {
           ok: false,
           error: hasWriteCred
             ? "Could not persist content. Try again."
-            : "The store token is read-only. Create a Read & write token in the Vercel dashboard (Storage → portfolio-content → Tokens) and set GLOBAL_CONFIG_WRITE_TOKEN.",
+            : "Content saving is not configured. Add VERCEL_API_TOKEN (and VERCEL_TEAM_ID) as project environment variables — see README “Private content editing”.",
         },
         { "Retry-After": "2" }
       );

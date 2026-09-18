@@ -71,18 +71,21 @@ The page silently navigates to `/admin/` — a plain login screen. On mobile, ta
 
 1. Create an Edge Config store in the Vercel dashboard (**Storage → portfolio-content**)
 2. **Connect it to the project** (Storage → portfolio-content → Connect) — this injects the `GLOBAL_CONFIG` connection variable used for public reads
-3. **Create a Read & write token** for the store (Storage → portfolio-content → Tokens → New token → access: **Read & write**) and add it as the environment variable `GLOBAL_CONFIG_WRITE_TOKEN` (Production). Without it, public content still works — but editor saves are refused with a clear error.
+3. Editor **saves** go through Vercel's REST API using an account-scoped API token (store-level tokens are read-only by design):
+   - vercel.com → avatar → **Account Settings → Tokens → Add** — no project scope, optional expiry — paste it as the project env var `VERCEL_API_TOKEN` (Production)
+   - also set `VERCEL_TEAM_ID` (team id from the Vercel URL / `vercel teams ls`)
+   - store the token server-side only; revoke it from the same settings page anytime
 4. Environment variables for the project:
    - `ADMIN_PASSWORD` — your editor password (long, unique)
    - `SESSION_SECRET` — long random string (e.g. `openssl rand -hex 24`)
-   - `GLOBAL_CONFIG_WRITE_TOKEN` — the Read & write token from step 3
+   - `VERCEL_API_TOKEN` + `VERCEL_TEAM_ID` — from step 3
 5. Redeploy. Open `/admin/`, sign in, edit, **Save changes** — content is stored centrally and served to every visitor. No redeploy needed for content changes.
 
 **Fallback behavior:** `content.default.json` is the site's baseline. If the store is unconfigured or errors, visitors silently get the bundled content — the site never breaks. To keep the bundled fallback in sync with centrally saved content: after a save, open `https://<your-domain>/api/content`, copy the `content` object into `content.default.json`, and include the change in your next code deploy (crawl-time SEO reads the HTML, which ships this file).
 
 **Security model:** password only in env vars; HMAC-signed HttpOnly SameSite=Lax Secure session cookie (14 days); in-memory login throttle (5 fails / 15 min / serverless instance — best-effort on cold starts, so also add a Vercel Firewall rate rule on `POST /api/auth` for a hard guarantee); every write re-verifies the session server-side; strict server-side content validation (string caps, URL allow-list, no HTML/script — everything renders via `textContent`). Discovering the trigger or the API gains nothing without the password.
 
-**Environment variables (production):** `ADMIN_PASSWORD`, `SESSION_SECRET`, `GLOBAL_CONFIG_WRITE_TOKEN` (Read & write token for the store), plus the auto-injected `GLOBAL_CONFIG` connection string. The code also supports the classic `EDGE_CONFIG_ID` + `EDGE_CONFIG_READ_WRITE_TOKEN` pair if you ever move to a classic Edge Config.
+**Environment variables (production):** `ADMIN_PASSWORD`, `SESSION_SECRET`, `VERCEL_API_TOKEN` + `VERCEL_TEAM_ID` (enables editor saves), plus the auto-injected `GLOBAL_CONFIG` connection string. The code also supports the classic `EDGE_CONFIG_ID` + `EDGE_CONFIG_READ_WRITE_TOKEN` pair if you ever move to a classic Edge Config.
 
 ## How to update things
 
