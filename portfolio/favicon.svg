@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#0b0a08"/>
+  <text x="30" y="43" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="30" font-weight="600" fill="#d3a95c">F</text>
+  <circle cx="45" cy="40" r="3.5" fill="#f4f2ee"/>
+</svg>

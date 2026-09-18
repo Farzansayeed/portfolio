@@ -1,0 +1,7 @@
+# local dev artifacts
+.vercel/
+*.log
+
+# OS
+Thumbs.db
+.DS_Store

@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "hero": {
+    "eyebrow": "Software Engineering Student · B.E. IT · Class of 2029",
+    "name": "Farzan Sayeed Hashmi",
+    "headline": "CS student. I build things that ship.",
+    "sub": "From AI-assisted land-record digitization to a live Wikipedia portal — I design, build, and deploy real software, then keep making it better. Everything below runs or ships.",
+    "ctaPrimary": { "label": "View projects", "href": "#projects" },
+    "ctaSecondary": { "label": "Contact me", "href": "#contact" }
+  },
+  "about": {
+    "heading": "Building real software, carefully.",
+    "paragraphs": [
+      "I'm Farzan — an Information Technology student at Matrusri Engineering College, Class of 2029. I learn by building: picking a real problem, figuring out what it actually demands, and shipping something people can open and use.",
+      "What pulls me in right now is software that has to earn trust — systems where an AI reads messy, human documents and every extracted value has to prove where it came from. That's the thread running through BhuKosh, my Smart India Hackathon 2026 project. Around it: live-data platforms, learning tools with accountability built in, and small systems designed to stay out of the way. I'm deepening the fundamentals too — a stage-by-stage C and data-structures track runs alongside everything else.",
+      "I hold myself to a simple bar — no dead links, no inflated claims, no dependencies I can't justify. Every project on this page is real, deployed, and documented."
+    ]
+  },
+  "education": {
+    "label": "Education",
+    "lines": ["Matrusri Engineering College", "B.E. Information Technology · 2029"]
+  },
+  "projects": [
+    {
+      "id": "bhukosh",
+      "index": "01",
+      "name": "BhuKosh",
+      "badge": "Smart India Hackathon 2026 · Flagship",
+      "flagship": true,
+      "visible": true,
+      "whatItIs": "Intelligent land-record digitization and validation for the Ministry of Rural Development — scans of handwritten registers, in any Indian script, turned into validated digital records.",
+      "whyItExists": "Digitization demos stop at \"the AI read the text.\" Land records demand the harder question: can you trust it, and can you prove it? BhuKosh is built for that question.",
+      "howItWorks": "Every extracted value stays bound to its evidence — the exact pixels it was read from, the engine run, the human decisions behind it. Business rules catch impossible data before review; human corrections teach the extractor; a truth-assurance verdict is computed from independently checkable signals, never the model's own opinion — all on a tamper-evident audit chain.",
+      "tech": ["Python", "JavaScript", "PL/pgSQL", "AI / OCR", "OpenAPI"],
+      "links": [
+        { "label": "Live app", "url": "https://bhukosh.vercel.app" },
+        { "label": "API docs", "url": "https://bhukosh-api.vercel.app/docs" },
+        { "label": "GitHub", "url": "https://github.com/Farzansayeed/BhuKosh" }
+      ],
+      "demoNote": "60-second demo, from the project's own docs: sign in as checker / checker-dev → open a pending record → click Evidence, then Check assurance.",
+      "visual": "evidence",
+      "visualCaption": "evidence-bound extraction — every value traces to its pixels"
+    },
+    {
+      "id": "wikiexplore",
+      "index": "02",
+      "name": "WikiExplore",
+      "badge": "",
+      "flagship": false,
+      "visible": true,
+      "whatItIs": "A live reading portal for all of Wikipedia — 66 million articles — wrapped in an editorial experience that boots today's real featured article the moment it opens.",
+      "whyItExists": "The original hackathon build was ~27 KB of hardcoded articles pretending to be a library. This is the honest version: everything live, nothing canned.",
+      "howItWorks": "Entirely on Wikimedia APIs — featured article of the day, top-read, and on-this-day history in a single feed call. No database, no backend: a browser and the breadth of human knowledge.",
+      "tech": ["JavaScript", "HTML / CSS", "Wikimedia APIs"],
+      "links": [
+        { "label": "Live site", "url": "https://wiki-explore.vercel.app" },
+        { "label": "GitHub", "url": "https://github.com/Farzansayeed/wiki_hackathon" }
+      ],
+      "demoNote": "",
+      "visual": "wiki",
+      "visualCaption": "one API call · the whole encyclopedia, live"
+    },
+    {
+      "id": "dsa-tracker",
+      "index": "03",
+      "name": "C × DSA Roadmap Tracker",
+      "badge": "Private",
+      "flagship": false,
+      "visible": true,
+      "whatItIs": "A zero-dependency, 12-stage tracker for a C programming + data-structures journey — daily targets, streaks, and a finish-line projection that updates with actual pace.",
+      "whyItExists": "Self-study dies of vagueness. This one schedules debt-aware catch-up days when tasks slip, and an accountability engine with escalating, opinionated consequences for skipped days.",
+      "howItWorks": "Hour targets per day, a 10-week activity heatmap, a day inspector for auditing any past date, and earned pardon tokens — every mechanism built to keep the streak honest.",
+      "tech": ["JavaScript", "HTML / CSS", "Zero-dependency"],
+      "links": [],
+      "demoNote": "",
+      "visual": "streaks",
+      "visualCaption": "debt-aware scheduling · the heatmap keeps score"
+    },
+    {
+      "id": "living-practice",
+      "index": "04",
+      "name": "The Living Practice",
+      "badge": "Private",
+      "flagship": false,
+      "visible": true,
+      "whatItIs": "A private, browser-only dashboard for daily attention and memory — plan, check-ins, focus timers from 25 to 90 minutes, and a memory deck that resurfaces on schedule.",
+      "whyItExists": "Recall practice only works if it's frictionless. This one lives at a URL, opens in a second, and asks for nothing — no account, no analytics, no server.",
+      "howItWorks": "Spaced repetition at expanding intervals — one day, three, a week, and onward — with habit check-ins, weekly goals, and JSON backup export. Everything stays in the browser.",
+      "tech": ["JavaScript", "HTML / CSS", "Spaced repetition"],
+      "links": [],
+      "demoNote": "",
+      "visual": "recall",
+      "visualCaption": "1 day · 3 days · 1 week — recall on schedule"
+    }
+  ],
+  "skills": {
+    "heading": "What I work with.",
+    "note": "Exactly what the projects above run on — nothing aspirational, nothing padded.",
+    "groups": [
+      { "label": "Languages", "items": ["Python", "JavaScript", "C", "SQL"] },
+      { "label": "Web", "items": ["HTML / CSS", "Three.js", "REST APIs", "Responsive design"] },
+      { "label": "Data & AI", "items": ["PostgreSQL", "PL/pgSQL", "OCR / document AI", "Wikimedia APIs"] },
+      { "label": "Tools & Platform", "items": ["Git & GitHub", "Vercel", "OpenAPI"] }
+    ]
+  },
+  "achievements": [
+    {
+      "id": "sih-2026",
+      "year": "2026",
+      "title": "Smart India Hackathon 2026",
+      "description": "Problem statement SIH26018 — Intelligent Land Record Digitization & Validation, Ministry of Rural Development. Built BhuKosh, the evidence-first digitization system, with a live app and API.",
+      "linkLabel": "BhuKosh",
+      "linkUrl": "https://bhukosh.vercel.app",
+      "visible": true
+    }
+  ],
+  "contact": {
+    "heading": "Let's build something.",
+    "lede": "Fastest way to reach me is email — I read everything.",
+    "email": "farzansayeedhashmi@gmail.com",
+    "links": [
+      { "label": "LinkedIn", "url": "https://www.linkedin.com/in/farzan-sayeed-hashmi-b9876539b/" },
+      { "label": "GitHub", "url": "https://github.com/Farzansayeed" }
+    ]
+  },
+  "seo": {
+    "title": "Farzan Sayeed Hashmi — CS student. I build things that ship.",
+    "description": "AI-assisted government tech, live web platforms, and developer tools — designed, built, and deployed to production.",
+    "socialTitle": "Farzan Sayeed Hashmi — CS student. I build things that ship.",
+    "socialDescription": "AI-assisted government tech, live web platforms, and developer tools — designed, built, and deployed to production."
+  }
+}

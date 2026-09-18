@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Content editor</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <main class="wrap">
+    <header class="bar">
+      <h1>Content editor</h1>
+      <div class="bar-actions">
+        <span id="who" class="who" hidden>signed in</span>
+        <button id="logout" type="button" class="btn ghost" hidden>Log out</button>
+      </div>
+    </header>
+
+    <!-- ============ LOGIN ============ -->
+    <section id="login-view" class="panel narrow">
+      <form id="login-form" autocomplete="off">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <button type="submit" class="btn solid wide">Sign in</button>
+        <p id="login-msg" class="msg" role="alert"></p>
+      </form>
+    </section>
+
+    <!-- ============ EDITOR ============ -->
+    <section id="editor-view" hidden>
+      <div class="toolbar">
+        <button id="save" type="button" class="btn solid">Save changes</button>
+        <button id="discard" type="button" class="btn ghost">Discard</button>
+        <span id="status" class="status" role="status"></span>
+      </div>
+
+      <details open>
+        <summary>Hero</summary>
+        <div class="grid">
+          <label>Eyebrow <input data-path="hero.eyebrow" type="text" maxlength="120"></label>
+          <label>Name <input data-path="hero.name" type="text" maxlength="80"></label>
+          <label>Headline <input data-path="hero.headline" type="text" maxlength="120"></label>
+          <label class="full">Sub-line <textarea data-path="hero.sub" rows="3" maxlength="1200"></textarea></label>
+          <label>Primary button label <input data-path="hero.ctaPrimary.label" type="text" maxlength="40"></label>
+          <label>Primary button link <input data-path="hero.ctaPrimary.href" type="text" maxlength="300"></label>
+          <label>Secondary button label <input data-path="hero.ctaSecondary.label" type="text" maxlength="40"></label>
+          <label>Secondary button link <input data-path="hero.ctaSecondary.href" type="text" maxlength="300"></label>
+        </div>
+      </details>
+
+      <details open>
+        <summary>About</summary>
+        <div class="grid">
+          <label class="full">Heading <input data-path="about.heading" type="text" maxlength="160"></label>
+          <label class="full">Paragraph 1 <textarea data-path="about.p0" rows="4" maxlength="1200"></textarea></label>
+          <label class="full">Paragraph 2 <textarea data-path="about.p1" rows="4" maxlength="1200"></textarea></label>
+          <label class="full">Paragraph 3 <textarea data-path="about.p2" rows="4" maxlength="1200"></textarea></label>
+        </div>
+      </details>
+
+      <details open>
+        <summary>Education</summary>
+        <div class="grid">
+          <label>Label <input data-path="education.label" type="text" maxlength="60"></label>
+          <label>Line 1 <input data-path="education.l0" type="text" maxlength="120"></label>
+          <label>Line 2 <input data-path="education.l1" type="text" maxlength="120"></label>
+        </div>
+      </details>
+
+      <details>
+        <summary>Projects</summary>
+        <div id="project-list"></div>
+      </details>
+
+      <details>
+        <summary>Skills</summary>
+        <div class="grid">
+          <label class="full">Heading <input data-path="skills.heading" type="text" maxlength="160"></label>
+          <label class="full">Note <input data-path="skills.note" type="text" maxlength="240"></label>
+        </div>
+        <div id="skillgroup-list"></div>
+      </details>
+
+      <details>
+        <summary>Achievements</summary>
+        <div id="achievement-list"></div>
+      </details>
+
+      <details open>
+        <summary>Contact</summary>
+        <div class="grid">
+          <label class="full">Heading <input data-path="contact.heading" type="text" maxlength="160"></label>
+          <label class="full">Lede <textarea data-path="contact.lede" rows="2" maxlength="600"></textarea></label>
+          <label>Email <input data-path="contact.email" type="email" maxlength="120"></label>
+        </div>
+        <div id="contactlink-list"></div>
+      </details>
+
+      <details>
+        <summary>SEO &amp; social</summary>
+        <div class="grid">
+          <label class="full">Page title <input data-path="seo.title" type="text" maxlength="120"></label>
+          <label class="full">Meta description <textarea data-path="seo.description" rows="2" maxlength="300"></textarea></label>
+          <label class="full">Social title <input data-path="seo.socialTitle" type="text" maxlength="120"></label>
+          <label class="full">Social description <textarea data-path="seo.socialDescription" rows="2" maxlength="300"></textarea></label>
+        </div>
+        <p class="hint">Social title/description update the Open Graph and Twitter meta on the live page after save. Canonical/og:url domain is set in the page source, not here.</p>
+      </details>
+
+      <div class="toolbar bottom">
+        <button id="save2" type="button" class="btn solid">Save changes</button>
+        <button id="discard2" type="button" class="btn ghost">Discard</button>
+        <span id="status2" class="status" role="status"></span>
+      </div>
+    </section>
+  </main>
+
+  <!-- templates for repeatable lists -->
+  <template id="tpl-project">
+    <div class="card" data-kind="project">
+      <div class="card-head">
+        <strong class="card-title"></strong>
+        <label class="inline"><input type="checkbox" data-k="visible"> visible</label>
+        <label class="inline"><input type="checkbox" data-k="flagship"> flagship</label>
+      </div>
+      <div class="grid">
+        <label>Name <input data-k="name" type="text" maxlength="80"></label>
+        <label>Badge <input data-k="badge" type="text" maxlength="60" placeholder="e.g. Private — empty for none"></label>
+        <label>Index <input data-k="index" type="text" maxlength="4"></label>
+        <label>Visual <select data-k="visual">
+          <option value="evidence">evidence</option>
+          <option value="wiki">wiki</option>
+          <option value="streaks">streaks</option>
+          <option value="recall">recall</option>
+        </select></label>
+        <label class="full">What it is <textarea data-k="whatItIs" rows="2" maxlength="1200"></textarea></label>
+        <label class="full">Why it exists <textarea data-k="whyItExists" rows="2" maxlength="1200"></textarea></label>
+        <label class="full">How it works <textarea data-k="howItWorks" rows="3" maxlength="1200"></textarea></label>
+        <label class="full">Technologies (comma-separated) <input data-k="tech" type="text"></label>
+        <label class="full">Links (one per line, format: Label | https://url) <textarea data-k="links" rows="2"></textarea></label>
+        <label class="full">Demo note (optional) <input data-k="demoNote" type="text" maxlength="600"></label>
+        <label class="full">Visual caption <input data-k="visualCaption" type="text" maxlength="120"></label>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-skillgroup">
+    <div class="card" data-kind="skillgroup">
+      <div class="grid">
+        <label>Group label <input data-k="label" type="text" maxlength="60"></label>
+        <label class="full">Skills (comma-separated) <input data-k="items" type="text"></label>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-achievement">
+    <div class="card" data-kind="achievement">
+      <div class="card-head">
+        <strong class="card-title"></strong>
+        <label class="inline"><input type="checkbox" data-k="visible"> visible</label>
+      </div>
+      <div class="grid">
+        <label>Year <input data-k="year" type="text" maxlength="10"></label>
+        <label>Title <input data-k="title" type="text" maxlength="120"></label>
+        <label class="full">Description <textarea data-k="description" rows="2" maxlength="1200"></textarea></label>
+        <label>Link label <input data-k="linkLabel" type="text" maxlength="40"></label>
+        <label>Link URL <input data-k="linkUrl" type="text" maxlength="300"></label>
+      </div>
+    </div>
+  </template>
+
+  <template id="tpl-contactlink">
+    <div class="card" data-kind="contactlink">
+      <div class="grid">
+        <label>Label <input data-k="label" type="text" maxlength="40"></label>
+        <label>URL <input data-k="url" type="text" maxlength="300"></label>
+      </div>
+    </div>
+  </template>
+
+  <script src="admin.js"></script>
+</body>
+</html>
