@@ -35,6 +35,9 @@ portfolio/             — the website itself (Vercel serves this folder)
   three-hero.js        — Three.js wave-field hero
   content.client.js    — hydrates saved content over the fallback (public, ~4 KB)
   content.default.json — bundled fallback content (= what ships in the HTML)
+  shots/               — project screenshots (placeholder images until real captures replace them)
+  resume.pdf           — résumé download (placeholder until the real PDF replaces it)
+  make_placeholders.py — regenerates the placeholder shots + resume.pdf
   admin/               — private editor (login + forms; noindex)
   favicon.svg
   og.png               — social share image (generated)
@@ -90,7 +93,9 @@ The page silently navigates to `/admin/` — a plain login screen. On mobile, ta
 
 **Content (recommended way)** — sign in to `/admin/` (trigger above), edit, save. Changes go live for everyone instantly, no deploy.
 
-**Projects (in code)** — each project is one `<article class="case">` block in `portfolio/index.html`. Duplicate a block and edit the text rows (`What it is` / `Why it exists` / `How it works`), tags, and links. To change an abstract visual, edit the inline SVG inside `.case-visual` — it's plain markup, no assets.
+**Projects (in code)** — the flagship project (BhuKosh) is a full case study: `<article class="case case-flagship">` in `portfolio/index.html` with a metadata row (Role / Team / Timeline / Stack), Problem → My contribution → System design → Key trade-off → Outcome, a screenshot figure (`portfolio/shots/`), and links. The second project follows the same pattern with the shorter row set. To add a project: duplicate a block, edit the text rows, and point the screenshot at a new file in `shots/`. Empty rows and metadata cells hide automatically.
+
+**Screenshots & résumé (manual, before sending to recruiters)** — `shots/bhukosh.png`, `shots/wikiexplore.png`, and `resume.pdf` are generated **placeholders** (clearly labeled; regenerate via `python make_placeholders.py` from inside `portfolio/`). Replace them with a real capture of the live app/site and a real one-page PDF — same filenames, no code changes needed.
 
 **Skills (in code)** — edit the `<ul>` lists inside `.skill-group` blocks in the Skills section of `portfolio/index.html`. Add a category by duplicating a `.skill-group` div.
 

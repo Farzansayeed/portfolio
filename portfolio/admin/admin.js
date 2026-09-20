@@ -124,10 +124,17 @@
   }
 
   // repeatable card lists
+  // Screenshot fields use dotted data-k ("screenshot.src") — map to item.screenshot
+  function shotKey(k) {
+    var m = k.match(/^screenshot\.(src|alt|caption)$/);
+    return m ? m[1] : null;
+  }
+
   function fillCard(card, item, kind) {
     card.querySelectorAll("[data-k]").forEach(function (input) {
       var k = input.getAttribute("data-k");
-      var v = item[k];
+      var sk = shotKey(k);
+      var v = sk ? (item.screenshot || {})[sk] : item[k];
       if (k === "tech" || k === "items") {
         input.value = (v || []).join(", ");
       } else if (k === "links") {
@@ -156,6 +163,9 @@
           });
         } else if (input.type === "checkbox") {
           item[k] = input.checked;
+        } else if (sk) {
+          item.screenshot = item.screenshot || {};
+          item.screenshot[sk] = input.value;
         } else {
           item[k] = input.value;
         }
@@ -201,6 +211,15 @@
         whatItIs: "",
         whyItExists: "",
         howItWorks: "",
+        role: "",
+        team: "",
+        timeline: "",
+        problem: "",
+        contribution: "",
+        design: "",
+        tradeoff: "",
+        outcome: "",
+        screenshot: { src: "", alt: "", caption: "" },
         tech: [],
         links: [],
         demoNote: "",

@@ -153,6 +153,9 @@ export function clientIp(req) {
 // The editor may only produce this exact shape. Everything is coerced to
 // plain strings (browser renders with textContent, never innerHTML).
 const ALLOWED_URL_RE = /^https?:\/\/[^\s"'<>]+$/i;
+// Safe site-relative paths for local assets (résumé PDF, screenshots):
+// alphanumeric start, plain path chars only, no scheme, no "..", no backslash.
+const SAFE_PATH_RE = /^[A-Za-z0-9][A-Za-z0-9/_ .-]*$/;
 const MAX = {
   strings: 2000,
   paragraphs: 6,
@@ -182,12 +185,26 @@ function safeUrl(v) {
   return ALLOWED_URL_RE.test(s) ? s : "";
 }
 
-// CTA hrefs may be same-page anchors (#projects) or absolute http(s) URLs —
-// nothing else. Blocks javascript:/data:/vbscript: etc.
+// CTA hrefs may be same-page anchors (#projects), absolute http(s) URLs, or
+// safe site-relative paths (e.g. "resume.pdf") — nothing else. Blocks
+// javascript:/data:/vbscript:, protocol-relative "//host", and traversal.
 function safeHref(v) {
   const s = safeText(v, "");
   if (!s) return "";
-  return /^#[A-Za-z0-9_-]*$/.test(s) || ALLOWED_URL_RE.test(s) ? s : "";
+  return (
+    /^#[A-Za-z0-9_-]*$/.test(s) ||
+    ALLOWED_URL_RE.test(s) ||
+    (SAFE_PATH_RE.test(s) && !s.includes("..") && !s.includes("\\"))
+  )
+    ? s
+    : "";
+}
+
+// Asset paths (screenshot images, résumé PDF): relative-only, traversal-proof.
+function safePath(v) {
+  const s = safeText(v, "");
+  if (!s) return "";
+  return SAFE_PATH_RE.test(s) && !s.includes("..") && !s.includes("\\") ? s : "";
 }
 
 function safeBool(v) {
@@ -224,6 +241,7 @@ export function validateContent(input) {
     name: safeText(hero.name).slice(0, 80),
     headline: safeText(hero.headline).slice(0, 120),
     sub: safeLongText(hero.sub),
+    availability: safeText(hero.availability).slice(0, 160),
     ctaPrimary: {
       label: safeText(hero.ctaPrimary?.label, "").slice(0, 40) || "View projects",
       href: safeHref(hero.ctaPrimary?.href) || "#projects",
@@ -240,6 +258,20 @@ export function validateContent(input) {
     paragraphs: Array.isArray(about.paragraphs)
       ? about.paragraphs.slice(0, MAX.paragraphs).map(safeLongText).filter(Boolean)
       : [],
+  };
+
+  const currently = input.currently || {};
+  out.currently = {
+    heading: safeText(currently.heading).slice(0, 60) || "Currently",
+    building: safeText(currently.building).slice(0, 300),
+    learning: safeText(currently.learning).slice(0, 300),
+    targetRole: safeText(currently.targetRole).slice(0, 160),
+  };
+
+  const privateWork = input.privateWork || {};
+  out.privateWork = {
+    label: safeText(privateWork.label).slice(0, 60),
+    note: safeLongText(privateWork.note),
   };
 
   const edu = input.education || {};
@@ -261,6 +293,19 @@ export function validateContent(input) {
         whatItIs: safeLongText(p?.whatItIs),
         whyItExists: safeLongText(p?.whyItExists),
         howItWorks: safeLongText(p?.howItWorks),
+        role: safeText(p?.role).slice(0, 80),
+        team: safeText(p?.team).slice(0, 80),
+        timeline: safeText(p?.timeline).slice(0, 80),
+        problem: safeLongText(p?.problem),
+        contribution: safeLongText(p?.contribution),
+        design: safeLongText(p?.design),
+        tradeoff: safeLongText(p?.tradeoff),
+        outcome: safeLongText(p?.outcome),
+        screenshot: {
+          src: safePath(p?.screenshot?.src),
+          alt: safeText(p?.screenshot?.alt).slice(0, 300),
+          caption: safeText(p?.screenshot?.caption).slice(0, 200),
+        },
         tech: safeTech(p?.tech),
         links: safeLinks(p?.links, MAX.linksPerProject),
         demoNote: safeLongText(p?.demoNote),
@@ -300,6 +345,10 @@ export function validateContent(input) {
     heading: safeText(contact.heading).slice(0, 160),
     lede: safeLongText(contact.lede),
     email: safeText(contact.email).slice(0, 120),
+    resume: {
+      label: safeText(contact.resume?.label).slice(0, 60),
+      url: safeHref(contact.resume?.url),
+    },
     links: safeLinks(contact.links, MAX.contactLinks),
   };
 

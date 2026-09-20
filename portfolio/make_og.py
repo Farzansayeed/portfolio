@@ -56,18 +56,22 @@ def font(size, bold=False):
     return ImageFont.load_default(size)
 
 M = 80 * SS  # margin
-eyebrow = "SOFTWARE ENGINEERING STUDENT  ·  B.E. IT  ·  CLASS OF 2029"
+eyebrow = "SECOND-YEAR B.E. IT  ·  MATRUSRI ENGINEERING COLLEGE"
 f_eyebrow = font(20 * SS)
-d.text((M, 96 * SS), eyebrow, font=f_eyebrow, fill=ACCENT)
+d.text((M, 84 * SS), eyebrow, font=f_eyebrow, fill=ACCENT)
 
-f_name = font(96 * SS, bold=True)
-d.text((M, 150 * SS), "Farzan Sayeed Hashmi", font=f_name, fill=TEXT)
+f_name = font(92 * SS, bold=True)
+d.text((M, 130 * SS), "Farzan Sayeed Hashmi", font=f_name, fill=TEXT)
 
-f_head = font(44 * SS)
-d.text((M, 286 * SS), "CS student. I build things that ship.", font=f_head, fill=TEXT)
+f_head = font(42 * SS)
+d.text((M, 252 * SS), "CS student. I build things that ship.", font=f_head, fill=TEXT)
 
-f_sub = font(28 * SS)
-d.text((M, 372 * SS), "AI-assisted government tech · live web platforms · developer tools", font=f_sub, fill=GREY)
+f_sub = font(26 * SS)
+d.text((M, 330 * SS), "BhuKosh — evidence-bound land-record AI (Smart India Hackathon 2026)", font=f_sub, fill=GREY)
+d.text((M, 368 * SS), "WikiExplore — a live portal for all 66M Wikipedia articles", font=f_sub, fill=GREY)
+
+f_avail = font(24 * SS, bold=True)
+d.text((M, 424 * SS), "Open to software engineering internships", font=f_avail, fill=ACCENT)
 
 # ---- footer hairline + label ----
 d.line([(M, H - 96 * SS), (W - M, H - 96 * SS)], fill=(255, 255, 255, 26), width=SS)

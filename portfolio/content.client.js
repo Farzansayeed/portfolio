@@ -27,8 +27,11 @@
   function setHref(id, v) {
     // An empty/absent href means "no override" (the server validator already
     // normalizes blank hrefs to sensible anchors, so "" rarely arrives).
+    // Accepts anchors, absolute http(s), and safe site-relative paths
+    // (e.g. "resume.pdf") — mirrors the server-side safeHref allow-list.
     if (typeof v !== "string" || !v) return;
-    if (!/^https?:\/\/[^\s"'<>]+$/i.test(v) && v.charAt(0) !== "#") return;
+    var isSafePath = /^[A-Za-z0-9][A-Za-z0-9/_ .-]*$/.test(v) && v.indexOf("..") < 0 && v.indexOf("\\") < 0;
+    if (!/^https?:\/\/[^\s"'<>]+$/i.test(v) && v.charAt(0) !== "#" && !isSafePath) return;
     var el = document.getElementById(id);
     if (el && v) {
       el.setAttribute("href", v);
@@ -60,6 +63,28 @@
     for (var j = n; j < slots.length; j++) slots[j].style.display = "none";
   }
 
+  function applyCurrently(c) {
+    var cur = c.currently;
+    if (!cur || typeof cur !== "object") return;
+    setText("f-cur-building", cur.building);
+    setText("f-cur-learning", cur.learning);
+    setText("f-cur-target", cur.targetRole);
+  }
+
+  function applyPrivateWork(c) {
+    var pw = c.privateWork;
+    if (!pw || typeof pw !== "object") return;
+    var p = document.querySelector(".private-note");
+    var label = typeof pw.label === "string" ? pw.label : null;
+    var note = typeof pw.note === "string" ? pw.note : null;
+    if (label !== null) setText("f-private-label", label);
+    if (note !== null) setText("f-private-note", note);
+    // both intentionally empty → the note disappears entirely
+    if (p && label !== null && note !== null && !label && !note) {
+      p.style.display = "none";
+    }
+  }
+
   function applyProjects(c) {
     var host = document.getElementById("f-projects");
     if (!host) return;
@@ -83,6 +108,7 @@
       var node = template.content.cloneNode(true);
       var root = node.querySelector(".case");
       if (p.flagship) root.classList.add("case-flagship");
+      if (p.id) root.id = "project-" + p.id;
       node.querySelector(".case-index").textContent =
         p.index || String(i + 1).padStart(2, "0");
       node.querySelector(".case-name").textContent = p.name;
@@ -94,10 +120,43 @@
         badgeEl.remove();
       }
 
-      var rows = node.querySelectorAll(".case-row");
-      var map = ["whatItIs", "whyItExists", "howItWorks"];
-      rows.forEach(function (row, k) {
-        var txt = p[map[k]] || "";
+      // metadata row: Role / Team / Timeline / Stack (Stack derives from tech)
+      var meta = node.querySelector(".case-meta");
+      var metaMap = { "m-role": p.role, "m-team": p.team, "m-timeline": p.timeline };
+      var metaFilled = 0;
+      Object.keys(metaMap).forEach(function (cls) {
+        var dd = node.querySelector("." + cls);
+        var cell = dd && dd.parentElement;
+        if (metaMap[cls]) {
+          dd.textContent = metaMap[cls];
+          metaFilled++;
+        } else if (cell) {
+          cell.style.display = "none";
+        }
+      });
+      if (Array.isArray(p.tech) && p.tech.length) {
+        node.querySelector(".m-stack").textContent = p.tech.join(" · ");
+        metaFilled++;
+      } else {
+        var stackCell = node.querySelector(".m-stack");
+        if (stackCell && stackCell.parentElement) stackCell.parentElement.style.display = "none";
+      }
+      if (meta && !metaFilled) meta.style.display = "none";
+
+      // case-study rows are driven by data-row attributes on the template
+      var rowMap = {
+        what: "whatItIs",
+        why: "whyItExists",
+        how: "howItWorks",
+        problem: "problem",
+        contribution: "contribution",
+        design: "design",
+        tradeoff: "tradeoff",
+        outcome: "outcome",
+      };
+      node.querySelectorAll(".case-row").forEach(function (row) {
+        var key = row.getAttribute("data-row");
+        var txt = key && rowMap[key] ? p[rowMap[key]] || "" : "";
         if (!txt) {
           row.style.display = "none";
         } else {
@@ -105,16 +164,13 @@
         }
       });
 
-      var tech = node.querySelector(".tags");
-      (p.tech || []).forEach(function (t) {
-        var li = document.createElement("li");
-        li.textContent = t;
-        tech.appendChild(li);
-      });
-      if (!tech.children.length) tech.style.display = "none";
+      // (technologies render in the metadata Stack cell — no separate tag list)
 
       var links = node.querySelector(".case-links");
       (p.links || []).forEach(function (l) {
+        if (!l || !l.url || !l.label) return;
+        var isSafePath = /^[A-Za-z0-9][A-Za-z0-9/_ .-]*$/.test(l.url) && l.url.indexOf("..") < 0 && l.url.indexOf("\\") < 0;
+        if (!/^https?:\/\/[^\s"'<>]+$/i.test(l.url) && !isSafePath) return;
         var a = document.createElement("a");
         a.className = "arrow-link ext";
         a.textContent = l.label;
@@ -136,15 +192,20 @@
         demo.style.display = "none";
       }
 
-      var svg = node.querySelector(".case-visual-svg use");
-      if (svg && p.visual) {
-        svg.setAttribute("href", "#pv-" + p.visual);
-      }
-      var cap = node.querySelector(".case-visual-caption");
-      if (p.visualCaption) {
-        cap.textContent = p.visualCaption;
-      } else {
-        cap.style.display = "none";
+      // screenshot figure — replaces the v1 abstract SVG visuals
+      var shot = p.screenshot;
+      var fig = node.querySelector(".case-shot");
+      if (fig && shot && shot.src) {
+        var img = fig.querySelector("img");
+        img.setAttribute("src", shot.src);
+        img.setAttribute("alt", shot.alt || p.name + " screenshot");
+        var capEl = fig.querySelector("figcaption");
+        if (shot.caption) {
+          capEl.textContent = shot.caption;
+        } else {
+          capEl.style.display = "none";
+        }
+        fig.hidden = false;
       }
 
       host.appendChild(node);
@@ -210,6 +271,19 @@
 
   function applyContact(c) {
     var btn = document.querySelector(".email-copy");
+    // résumé link — hidden entirely when no URL is configured
+    var resume = c.contact && c.contact.resume;
+    var rLink = document.getElementById("f-resume-link");
+    if (rLink) {
+      if (resume && resume.url) {
+        if (resume.label) rLink.textContent = resume.label;
+        rLink.setAttribute("href", resume.url);
+        if (!/^https?:/i.test(resume.url)) rLink.setAttribute("download", "");
+        rLink.style.display = "";
+      } else {
+        rLink.style.display = "none";
+      }
+    }
     if (btn && c.contact.email) {
       btn.dataset.email = c.contact.email;
       var t = btn.querySelector(".email-text");
@@ -272,13 +346,15 @@
       }
       applyAbout(c);
       applyEducation(c);
+      applyCurrently(c);
+      applyPrivateWork(c);
       applyProjects(c);
       applySkills(c);
       applyAchievements(c);
       applyContact(c);
       applySeo(c);
     } catch (e) {
-      // never break the public page over hydration
+      console.error("hydration error:", e && (e.message || String(e)));
     }
   }
 

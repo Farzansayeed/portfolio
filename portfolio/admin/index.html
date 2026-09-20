@@ -43,6 +43,7 @@
           <label>Name <input data-path="hero.name" type="text" maxlength="80"></label>
           <label>Headline <input data-path="hero.headline" type="text" maxlength="120"></label>
           <label class="full">Sub-line <textarea data-path="hero.sub" rows="3" maxlength="1200"></textarea></label>
+          <label class="full">Availability line <input data-path="hero.availability" type="text" maxlength="160" placeholder="e.g. Open to software engineering internships"></label>
           <label>Primary button label <input data-path="hero.ctaPrimary.label" type="text" maxlength="40"></label>
           <label>Primary button link <input data-path="hero.ctaPrimary.href" type="text" maxlength="300"></label>
           <label>Secondary button label <input data-path="hero.ctaSecondary.label" type="text" maxlength="40"></label>
@@ -69,9 +70,26 @@
         </div>
       </details>
 
+      <details open>
+        <summary>Currently</summary>
+        <div class="grid">
+          <label class="full">Building <textarea data-path="currently.building" rows="2" maxlength="300"></textarea></label>
+          <label class="full">Learning <textarea data-path="currently.learning" rows="2" maxlength="300"></textarea></label>
+          <label class="full">Target role <input data-path="currently.targetRole" type="text" maxlength="160"></label>
+        </div>
+      </details>
+
       <details>
         <summary>Projects</summary>
         <div id="project-list"></div>
+      </details>
+
+      <details>
+        <summary>Private work note</summary>
+        <div class="grid">
+          <label>Label <input data-path="privateWork.label" type="text" maxlength="60"></label>
+          <label class="full">Note <textarea data-path="privateWork.note" rows="3" maxlength="1200"></textarea></label>
+        </div>
       </details>
 
       <details>
@@ -94,6 +112,8 @@
           <label class="full">Heading <input data-path="contact.heading" type="text" maxlength="160"></label>
           <label class="full">Lede <textarea data-path="contact.lede" rows="2" maxlength="600"></textarea></label>
           <label>Email <input data-path="contact.email" type="email" maxlength="120"></label>
+          <label>Résumé label <input data-path="contact.resume.label" type="text" maxlength="60"></label>
+          <label>Résumé URL (relative path or https) <input data-path="contact.resume.url" type="text" maxlength="300"></label>
         </div>
         <div id="contactlink-list"></div>
       </details>
@@ -138,6 +158,17 @@
         <label class="full">What it is <textarea data-k="whatItIs" rows="2" maxlength="1200"></textarea></label>
         <label class="full">Why it exists <textarea data-k="whyItExists" rows="2" maxlength="1200"></textarea></label>
         <label class="full">How it works <textarea data-k="howItWorks" rows="3" maxlength="1200"></textarea></label>
+        <label>Role <input data-k="role" type="text" maxlength="80"></label>
+        <label>Team size <input data-k="team" type="text" maxlength="80"></label>
+        <label>Timeline <input data-k="timeline" type="text" maxlength="80"></label>
+        <label class="full">Problem <textarea data-k="problem" rows="3" maxlength="1200"></textarea></label>
+        <label class="full">My contribution <textarea data-k="contribution" rows="3" maxlength="1200"></textarea></label>
+        <label class="full">System design <textarea data-k="design" rows="3" maxlength="1200"></textarea></label>
+        <label class="full">Key trade-off <textarea data-k="tradeoff" rows="2" maxlength="1200"></textarea></label>
+        <label class="full">Outcome <textarea data-k="outcome" rows="2" maxlength="1200"></textarea></label>
+        <label>Screenshot path <input data-k="screenshot.src" type="text" maxlength="200" placeholder="shots/bhukosh.png"></label>
+        <label>Screenshot alt text <input data-k="screenshot.alt" type="text" maxlength="300"></label>
+        <label class="full">Screenshot caption <input data-k="screenshot.caption" type="text" maxlength="200"></label>
         <label class="full">Technologies (comma-separated) <input data-k="tech" type="text"></label>
         <label class="full">Links (one per line, format: Label | https://url) <textarea data-k="links" rows="2"></textarea></label>
         <label class="full">Demo note (optional) <input data-k="demoNote" type="text" maxlength="600"></label>
