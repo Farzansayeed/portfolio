@@ -213,9 +213,7 @@ body.nav-locked { overflow: hidden; }
   z-index: 0;
   pointer-events: none;
   background: radial-gradient(ellipse 58% 46% at 50% 62%, rgba(211, 169, 92, 0.09), transparent 70%);
-}
-
-#hero-canvas {
+}#hero-canvas {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -223,8 +221,19 @@ body.nav-locked { overflow: hidden; }
   height: 100%;
   opacity: 0;
 }
-
 #hero-canvas.ready { animation: canvas-in 1.6s var(--ease) 0.2s forwards; }
+
+/* orb layer — additive glow sits just above the wave, below content */
+#hero-orbs {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  animation: canvas-in 2.2s var(--ease) 0.9s forwards;
+  pointer-events: none;
+}
 
 @keyframes canvas-in { to { opacity: 1; } }
 
@@ -783,6 +792,7 @@ html.js .reveal.is-visible {
     transition: none;
   }
   #hero-canvas.ready { animation: none; opacity: 1; }
+  #hero-orbs { animation: none; opacity: 1; }
   .scroll-cue span { animation: none; }
   .btn:hover, .arrow-link:hover::after { transform: none; }
 }

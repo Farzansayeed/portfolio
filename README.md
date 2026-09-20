@@ -33,6 +33,10 @@ portfolio/             — the website itself (Vercel serves this folder)
   styles.css           — design system + all section styles (tokens at the top)
   main.js              — nav state, mobile menu, scroll reveals, email copy, hidden editor trigger
   three-hero.js        — Three.js wave-field hero
+  orb-field.js         — hero orb layer: the real "thinking orbs" engine (vendored as
+                         orb-engine.js, MIT © Jakub Antalik) rendering a field of
+                         working-state orbs blended over the wave; pauses off-screen,
+                         respects reduced motion
   content.client.js    — hydrates saved content over the fallback (public, ~4 KB)
   content.default.json — bundled fallback content (= what ships in the HTML)
   shots/               — project screenshots (placeholder images until real captures replace them)
