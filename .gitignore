@@ -1,6 +1,11 @@
 # local dev artifacts
 .vercel/
 *.log
+.env*
+.freebuff/
+
+# local QA artifacts
+_qa/
 
 # OS
 Thumbs.db

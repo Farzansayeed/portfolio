@@ -44,8 +44,6 @@ api/                   — serverless functions (Vercel)
   content.js           — GET public content, PUT authenticated write
   lib.js               — HMAC sessions, throttle, strict content validator
 vercel.json            — outputDirectory, noindex header for /admin, no-store for /api
-mock-store.js          — test-only local fake of Edge Config (see below)
-start-store.cmd / start-dev.cmd — test-only launchers for local API testing
 ```
 
 ## Private content editing
@@ -63,7 +61,6 @@ The page silently navigates to `/admin/` — a plain login screen. On mobile, ta
 | Environment | Password | Where it lives |
 |---|---|---|
 | **Production** (deployed site) | `Farzan-Portfolio-2029!edit` | Vercel env var `ADMIN_PASSWORD` (server-side only — it appears nowhere in shipped JS/HTML) |
-| **Local dev** (`start-dev.cmd`) | `test-pass-12345` | Baked into the test launcher only |
 
 > ⚠️ **If this repository is ever made public, change the production password first** (`vercel env add ADMIN_PASSWORD production`, enter the new value, then redeploy). The hidden trigger is convenience only — all editing requires the password server-side; discovering `/admin/` or the trigger grants nothing.
 
@@ -83,7 +80,9 @@ The page silently navigates to `/admin/` — a plain login screen. On mobile, ta
 
 **Fallback behavior:** `portfolio/content.default.json` is the site's baseline. If the store is unconfigured or errors, visitors silently get the bundled content — the site never breaks. To keep the bundled fallback in sync with centrally saved content: after a save, open `https://<your-domain>/api/content`, copy the `content` object into `portfolio/content.default.json`, and include the change in your next code deploy (crawl-time SEO reads the HTML, which ships this file).
 
-**Security model:** password only in env vars; HMAC-signed HttpOnly SameSite=Lax Secure session cookie (14 days); in-memory login throttle (5 fails / 15 min / serverless instance — best-effort on cold starts, so also add a Vercel Firewall rate rule on `POST /api/auth` for a hard guarantee); every write re-verifies the session server-side; strict server-side content validation (string caps, URL allow-list, no HTML/script — everything renders via `textContent`). Discovering the trigger or the API gains nothing without the password.
+**Security model:** password only in env vars; HMAC-signed HttpOnly SameSite=Lax Secure session cookie (14 days); in-memory login throttle (5 fails / 15 min / serverless instance — best-effort on cold starts, so also add a Vercel Firewall rate rule on `POST /api/auth` for a hard guarantee — see below); every write re-verifies the session server-side; strict server-side content validation (string caps, URL allow-list, no HTML/script — everything renders via `textContent`). Discovering the trigger or the API gains nothing without the password.
+
+**Vercel Firewall rate rule (optional hardening, dashboard-only):** Project → Firewall → *Request Rules* (or Rate Limiting) → create a rule: **Match:** path equals `/api/auth`, method equals `POST`, action **Rate Limit** — allow **5 requests** per **15 minutes** per **IP address**, then **Block** (or challenge) for the window. This makes brute-force throttling global across all serverless instances instead of per-instance.
 
 **Environment variables (production):** `ADMIN_PASSWORD`, `SESSION_SECRET`, `VERCEL_API_TOKEN` + `VERCEL_TEAM_ID` (enables editor saves), plus the auto-injected `GLOBAL_CONFIG` connection string. The code also supports the classic `EDGE_CONFIG_ID` + `EDGE_CONFIG_READ_WRITE_TOKEN` pair if you ever move to a classic Edge Config.
 
@@ -127,14 +126,8 @@ python make_og.py
 3. Create the Edge Config store + environment variables (see *Private content editing*)
 4. Deploy. Add a custom domain later in Project → Settings → Domains
 
-## Local testing of the editing system
+## Local testing
 
-`vercel dev` runs the API locally, and `mock-store.js` fakes the Edge Config REST API so the full loop (login → edit → save → hydrate) works without a Vercel account:
+For visual work, serve the site with any static server (e.g. `python -m http.server 8080` from inside `portfolio/`). Without the content API the page uses the bundled fallback content — fully representative of the design.
 
-```cmd
-cd /d C:\Users\farza\github\portfolio
-start-store.cmd   :: mock Edge Config on 127.0.0.1:8499
-start-dev.cmd     :: vercel dev on 127.0.0.1:8440 (test creds baked in)
-```
-
-Then use the trigger → `/admin/` and sign in with the local dev password. These three files (`mock-store.js`, `start-store.cmd`, `start-dev.cmd`) are development helpers — safe to delete before a production push.
+Testing the editing system end-to-end locally requires the production environment variables and `vercel dev`, which connects to the real content store — treat it as production data.

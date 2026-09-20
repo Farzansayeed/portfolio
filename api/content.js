@@ -17,6 +17,9 @@ const CLASSIC_ID = process.env.EDGE_CONFIG_ID;
 const CLASSIC_TOKEN = process.env.EDGE_CONFIG_READ_WRITE_TOKEN;
 const GC_DESCRIPTOR = process.env.GLOBAL_CONFIG; // https://global-config.vercel.com/ecfg_...?token=...
 const GC_BASE = process.env.EDGE_CONFIG_API || "https://global-config.vercel.com";
+// Write base (Vercel account API). Override exists so the local mock can
+// emulate the production write path end-to-end.
+const GC_WRITE_BASE = process.env.EDGE_CONFIG_API_WRITE || "https://api.vercel.com";
 const CLASSIC_BASE = process.env.EDGE_CONFIG_API_CLASSIC || "https://api.vercel.com";
 // Writes: Global Config store tokens are read-only, so saves go through
 // Vercel's authenticated REST API with an account-scoped API token instead.
@@ -86,7 +89,7 @@ async function gcWrite(info, content) {
   // (account token). Store-level tokens are read-only by design.
   if (!API_TOKEN) return false;
   const res = await fetchT(
-    `https://api.vercel.com/v1/global-config/${info.id}/items` +
+    `${GC_WRITE_BASE}/v1/global-config/${info.id}/items` +
       (TEAM_ID ? `?teamId=${TEAM_ID}` : ""),
     {
       method: "PATCH",
@@ -100,6 +103,7 @@ async function gcWrite(info, content) {
     },
     8000
   );
+  if (!res.ok) console.error("gcWrite: store responded", res.status);
   return res.ok;
 }
 
@@ -123,6 +127,13 @@ async function classicWrite(content) {
 
 export default async function handler(req, res) {
   if (req.method === "GET") {
+    if (process.env.CONTENT_DEBUG) {
+      console.error(
+        "GET diag: gc=" + JSON.stringify(gcInfo()) +
+        " gcBase=" + GC_BASE + " classicId=" + (CLASSIC_ID || "") +
+        " classicBase=" + CLASSIC_BASE
+      );
+    }
     let content = null;
     let source = "fallback";
     try {
@@ -172,7 +183,8 @@ export default async function handler(req, res) {
     let stored = false;
     try {
       stored = gc ? await gcWrite(gc, clean) : await classicWrite(clean);
-    } catch {
+    } catch (e) {
+      console.error("content persist failed:", e && (e.message || e));
       stored = false;
     }
     if (!stored) {

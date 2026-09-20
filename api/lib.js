@@ -311,13 +311,11 @@ export function validateContent(input) {
     socialDescription: safeText(seo.socialDescription).slice(0, 300),
   };
 
-  // sanity floor: a save that would blank the site's core identity is
-  // rejected outright (protects against accidental empty overwrites)
-  const hasCore =
-    out.hero.name.length > 0 ||
-    out.about.paragraphs.length > 0 ||
-    out.projects.length > 0;
-  if (!hasCore) return null;
+  // structural sanity floor: an all-empty object ("{}" or hollow shell) is a
+  // malformed save and is rejected; intentional empties (e.g. achievements: [])
+  // with real content elsewhere are legitimate and must be stored as-is.
+  // Per-field emptiness is the admin's prerogative (Issue 1, case B).
+  if (out.hero.name.length === 0 && out.projects.length === 0) return null;
 
   return out;
 }

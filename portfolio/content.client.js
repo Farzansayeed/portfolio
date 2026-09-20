@@ -19,11 +19,15 @@
 
   function setText(id, v) {
     var el = document.getElementById(id);
-    if (el && typeof v === "string" && v) el.textContent = v;
+    // Central content wins even when intentionally empty ("" clears the
+    // bundled text rather than preserving it).
+    if (el && typeof v === "string") el.textContent = v;
   }
 
   function setHref(id, v) {
-    if (typeof v !== "string") return;
+    // An empty/absent href means "no override" (the server validator already
+    // normalizes blank hrefs to sensible anchors, so "" rarely arrives).
+    if (typeof v !== "string" || !v) return;
     if (!/^https?:\/\/[^\s"'<>]+$/i.test(v) && v.charAt(0) !== "#") return;
     var el = document.getElementById(id);
     if (el && v) {
@@ -37,7 +41,7 @@
 
   function applyAbout(c) {
     var wrap = document.getElementById("f-about-paragraphs");
-    if (!wrap || !Array.isArray(c.about.paragraphs) || !c.about.paragraphs.length) return;
+    if (!wrap || !Array.isArray(c.about.paragraphs)) return;
     // wrap children are static <p class="about-text-p"> slots created server-
     // side; we fill the same number of paragraphs that exist.
     var slots = wrap.querySelectorAll(".about-text-p");
@@ -62,10 +66,13 @@
     var template = document.getElementById("f-project-template");
     if (!template) return;
 
-    var saved = (c.projects || []).filter(function (p) {
+    // Central content is authoritative even when it empties the list.
+    // Only null/non-array central content (older schema) keeps the bundled markup.
+    if (!Array.isArray(c.projects)) return;
+
+    var saved = c.projects.filter(function (p) {
       return p.visible !== false && typeof p.name === "string" && p.name;
     });
-    if (!saved.length) return;
 
     // remove all statically-defined case articles; rebuild from saved content
     host.querySelectorAll(".case").forEach(function (el) {
@@ -149,10 +156,11 @@
     if (!host) return;
     var template = document.getElementById("f-skillgroup-template");
     if (!template) return;
-    var groups = (c.skills.groups || []).filter(function (g) {
+    if (!c.skills || typeof c.skills !== "object" || !Array.isArray(c.skills.groups)) return;
+
+    var groups = c.skills.groups.filter(function (g) {
       return g.label && (g.items || []).length;
     });
-    if (!groups.length) return;
     host.querySelectorAll(".skill-group").forEach(function (el) {
       el.remove();
     });
@@ -174,10 +182,11 @@
     if (!host) return;
     var template = document.getElementById("f-achievement-template");
     if (!template) return;
-    var saved = (c.achievements || []).filter(function (a) {
+    if (!Array.isArray(c.achievements)) return;
+
+    var saved = c.achievements.filter(function (a) {
       return a.visible !== false && a.title;
     });
-    if (!saved.length) return;
     host.querySelectorAll(".achievement").forEach(function (el) {
       el.remove();
     });
@@ -212,10 +221,11 @@
     if (!host) return;
     var template = document.getElementById("f-contactlink-template");
     if (!template) return;
-    var links = (c.contact.links || []).filter(function (l) {
+    if (!c.contact || typeof c.contact !== "object" || !Array.isArray(c.contact.links)) return;
+
+    var links = c.contact.links.filter(function (l) {
       return l.label && l.url;
     });
-    if (!links.length) return;
     host.querySelectorAll(".arrow-link").forEach(function (el) {
       el.remove();
     });
@@ -280,13 +290,29 @@
     return ctrl.signal;
   }
 
+  // True only when content is degenerate — mirrors the server validator floor
+  // (a save must contain a hero name or ≥1 project). Anything the server
+  // accepted is legitimate central authority, including emptied collections.
+  function isHollowContent(c) {
+    if (!c || typeof c !== "object") return true;
+    if (typeof c.hero !== "object" || c.hero === null) return true;
+    var name = typeof c.hero.name === "string" ? c.hero.name.trim() : "";
+    var projectCount = Array.isArray(c.projects) ? c.projects.length : 0;
+    return !(name.length > 0 || projectCount > 0);
+  }
+
   window
     .fetch("/api/content", { signal: fetchTimeout(6000) })
     .then(function (r) {
       return r.ok ? r.json() : null;
     })
     .then(function (data) {
-      if (data && data.ok && data.content) apply(data.content);
+      // Central content, once retrieved, is authoritative — including its
+      // intentionally empty fields. Only total unavailability (bad status,
+      // network error, malformed JSON, hollow all-empty content) falls back.
+      if (data && data.ok && data.content && !isHollowContent(data.content)) {
+        apply(data.content);
+      }
     })
     .catch(function () {
       /* bundled defaults remain */

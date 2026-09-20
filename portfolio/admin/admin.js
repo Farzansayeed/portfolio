@@ -160,13 +160,17 @@
           item[k] = input.value;
         }
         if (k === "name" || k === "title") {
-          card.querySelector(".card-title").textContent = input.value;
+          var tEl = card.querySelector(".card-title");
+          if (tEl) tEl.textContent = input.value;
         }
         setDirty(true);
       });
     });
-    var title = item.name || item.title || item.label;
-    if (title) card.querySelector(".card-title").textContent = title;
+    var titleEl = card.querySelector(".card-title");
+    if (titleEl) {
+      var title = item.name || item.title || item.label;
+      if (title) titleEl.textContent = title;
+    }
   }
 
   function renderRepeatable(containerId, tplId, list, kind, onClickAdd) {
