@@ -137,6 +137,21 @@ textarea { resize: vertical; }
 
 .hint { color: var(--mut); font-size: 12.5px; margin-top: 10px; }
 
+/* nested sub-accordions inside repeatable cards (e.g. project sections) */
+.sub {
+  background: #1e1d22;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 14px;
+  margin: 8px 0 0;
+}
+.sub > summary {
+  font-size: 13px;
+  padding: 4px 0;
+  color: var(--text);
+}
+.sub .grid { margin-top: 6px; }
+
 @media (max-width: 640px) {
   .grid { grid-template-columns: 1fr; }
   .toolbar { flex-wrap: wrap; }

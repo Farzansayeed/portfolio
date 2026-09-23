@@ -171,7 +171,7 @@
         }
         if (k === "name" || k === "title") {
           var tEl = card.querySelector(".card-title");
-          if (tEl) tEl.textContent = input.value;
+          if (tEl) tEl.textContent = (input.value || item.label || "") + (item.flagship ? "  ·  flagship" : "");
         }
         setDirty(true);
       });
@@ -179,7 +179,10 @@
     var titleEl = card.querySelector(".card-title");
     if (titleEl) {
       var title = item.name || item.title || item.label;
-      if (title) titleEl.textContent = title;
+      var bits = [];
+      if (item.flagship) bits.push("flagship");
+      if (item.badge) bits.push(item.badge);
+      if (titleEl) titleEl.textContent = bits.length ? title + "  ·  " + bits.join(" · ") : title;
     }
   }
 
@@ -223,8 +226,6 @@
         tech: [],
         links: [],
         demoNote: "",
-        visual: "evidence",
-        visualCaption: "",
       });
       setDirty(true);
       renderLists();

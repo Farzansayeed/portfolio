@@ -51,7 +51,7 @@
         </div>
       </details>
 
-      <details open>
+      <details>
         <summary>About</summary>
         <div class="grid">
           <label class="full">Heading <input data-path="about.heading" type="text" maxlength="160"></label>
@@ -61,7 +61,7 @@
         </div>
       </details>
 
-      <details open>
+      <details>
         <summary>Education</summary>
         <div class="grid">
           <label>Label <input data-path="education.label" type="text" maxlength="60"></label>
@@ -70,7 +70,7 @@
         </div>
       </details>
 
-      <details open>
+      <details>
         <summary>Currently</summary>
         <div class="grid">
           <label class="full">Building <textarea data-path="currently.building" rows="2" maxlength="300"></textarea></label>
@@ -79,7 +79,7 @@
         </div>
       </details>
 
-      <details>
+      <details open>
         <summary>Projects</summary>
         <div id="project-list"></div>
       </details>
@@ -145,35 +145,46 @@
         <label class="inline"><input type="checkbox" data-k="visible"> visible</label>
         <label class="inline"><input type="checkbox" data-k="flagship"> flagship</label>
       </div>
-      <div class="grid">
-        <label>Name <input data-k="name" type="text" maxlength="80"></label>
-        <label>Badge <input data-k="badge" type="text" maxlength="60" placeholder="e.g. Private — empty for none"></label>
-        <label>Index <input data-k="index" type="text" maxlength="4"></label>
-        <label>Visual <select data-k="visual">
-          <option value="evidence">evidence</option>
-          <option value="wiki">wiki</option>
-          <option value="streaks">streaks</option>
-          <option value="recall">recall</option>
-        </select></label>
-        <label class="full">What it is <textarea data-k="whatItIs" rows="2" maxlength="1200"></textarea></label>
-        <label class="full">Why it exists <textarea data-k="whyItExists" rows="2" maxlength="1200"></textarea></label>
-        <label class="full">How it works <textarea data-k="howItWorks" rows="3" maxlength="1200"></textarea></label>
-        <label>Role <input data-k="role" type="text" maxlength="80"></label>
-        <label>Team size <input data-k="team" type="text" maxlength="80"></label>
-        <label>Timeline <input data-k="timeline" type="text" maxlength="80"></label>
-        <label class="full">Problem <textarea data-k="problem" rows="3" maxlength="1200"></textarea></label>
-        <label class="full">My contribution <textarea data-k="contribution" rows="3" maxlength="1200"></textarea></label>
-        <label class="full">System design <textarea data-k="design" rows="3" maxlength="1200"></textarea></label>
-        <label class="full">Key trade-off <textarea data-k="tradeoff" rows="2" maxlength="1200"></textarea></label>
-        <label class="full">Outcome <textarea data-k="outcome" rows="2" maxlength="1200"></textarea></label>
-        <label>Screenshot path <input data-k="screenshot.src" type="text" maxlength="200" placeholder="shots/bhukosh.png"></label>
-        <label>Screenshot alt text <input data-k="screenshot.alt" type="text" maxlength="300"></label>
-        <label class="full">Screenshot caption <input data-k="screenshot.caption" type="text" maxlength="200"></label>
-        <label class="full">Technologies (comma-separated) <input data-k="tech" type="text"></label>
-        <label class="full">Links (one per line, format: Label | https://url) <textarea data-k="links" rows="2"></textarea></label>
-        <label class="full">Demo note (optional) <input data-k="demoNote" type="text" maxlength="600"></label>
-        <label class="full">Visual caption <input data-k="visualCaption" type="text" maxlength="120"></label>
-      </div>
+      <details class="sub" open>
+        <summary>Basics</summary>
+        <div class="grid">
+          <label>Name <input data-k="name" type="text" maxlength="80"></label>
+          <label>Badge <input data-k="badge" type="text" maxlength="60" placeholder="e.g. Private — empty for none"></label>
+          <label>Index <input data-k="index" type="text" maxlength="4"></label>
+        </div>
+      </details>
+      <details class="sub">
+        <summary>Story</summary>
+        <div class="grid">
+          <label class="full">What it is <textarea data-k="whatItIs" rows="2" maxlength="1200"></textarea></label>
+          <label class="full">Why it exists <textarea data-k="whyItExists" rows="2" maxlength="1200"></textarea></label>
+          <label class="full">How it works <textarea data-k="howItWorks" rows="3" maxlength="1200"></textarea></label>
+        </div>
+      </details>
+      <details class="sub">
+        <summary>Case study</summary>
+        <div class="grid">
+          <label>Role <input data-k="role" type="text" maxlength="80"></label>
+          <label>Team size <input data-k="team" type="text" maxlength="80"></label>
+          <label>Timeline <input data-k="timeline" type="text" maxlength="80"></label>
+          <label class="full">Problem <textarea data-k="problem" rows="3" maxlength="1200"></textarea></label>
+          <label class="full">My contribution <textarea data-k="contribution" rows="3" maxlength="1200"></textarea></label>
+          <label class="full">System design <textarea data-k="design" rows="3" maxlength="1200"></textarea></label>
+          <label class="full">Key trade-off <textarea data-k="tradeoff" rows="2" maxlength="1200"></textarea></label>
+          <label class="full">Outcome <textarea data-k="outcome" rows="2" maxlength="1200"></textarea></label>
+        </div>
+      </details>
+      <details class="sub">
+        <summary>Media &amp; links</summary>
+        <div class="grid">
+          <label>Screenshot path <input data-k="screenshot.src" type="text" maxlength="200" placeholder="shots/bhukosh.png"></label>
+          <label>Screenshot alt text <input data-k="screenshot.alt" type="text" maxlength="300"></label>
+          <label class="full">Screenshot caption <input data-k="screenshot.caption" type="text" maxlength="200"></label>
+          <label class="full">Technologies (comma-separated) <input data-k="tech" type="text"></label>
+          <label class="full">Links (one per line, format: Label | https://url) <textarea data-k="links" rows="2"></textarea></label>
+          <label class="full">Demo note (optional) <input data-k="demoNote" type="text" maxlength="600"></label>
+        </div>
+      </details>
     </div>
   </template>
 
