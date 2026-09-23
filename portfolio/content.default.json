@@ -69,7 +69,7 @@
       "visible": true,
       "whatItIs": "A live reading portal for all of Wikipedia — 66 million articles — that opens on today's real featured article.",
       "whyItExists": "The original hackathon build shipped ~27 KB of hardcoded articles pretending to be a library. WikiExplore is the honest version: everything live, nothing canned.",
-      "howItWorks": "One Wikimedia feed call powers the whole page — featured article of the day, most-read, and on-this-day history. The product decisions were about restraint: no database, no backend, no fake depth — just fast, readable access to live data.",
+      "howItWorks": "One Wikimedia feed call powers the home page — featured article of the day, most-read, on-this-day history, and news. The reader boots today's featured article, pulls live sections with a table of contents, weaves in cross-link previews, and merges each chapter's citations into real numbered footnotes. No database, no backend, no framework — restraint as a product decision, in ~4,240 lines of hand-written vanilla JS.",
       "role": "Solo build",
       "team": "Solo",
       "timeline": "2026",
@@ -81,7 +81,7 @@
       "tech": ["JavaScript", "HTML / CSS", "Wikimedia APIs"],
       "links": [
         { "label": "Live site", "url": "https://wiki-explore.vercel.app" },
-        { "label": "Source", "url": "https://github.com/Farzansayeed/wiki_hackathon" }
+        { "label": "Source", "url": "https://github.com/Farzansayeed/wiki-explore" }
       ],
       "demoNote": "",
       "screenshot": {
