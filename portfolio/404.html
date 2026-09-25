@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>404 — Farzan Sayeed Hashmi</title>
-  <meta name="description" content="This page wandered off. Rotate the arrows, rebuild the route home.">
+  <meta name="description" content="This page doesn't exist. The exit does — clear the board.">
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="#0b0a08">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -14,38 +14,36 @@
 <body>
   <main class="shell">
     <header class="head">
-      <p class="kicker">Error 404 · Page not found</p>
-      <h1>This page wandered&nbsp;off.</h1>
-      <p class="lede">It left in a hurry. The arrows still work — rebuild the route from the broken page to&nbsp;home.</p>
+      <p class="code" aria-hidden="true">404</p>
+      <h1>Page not found.</h1>
+      <p class="lede">But you can still find your way out.</p>
     </header>
 
-    <section class="game" aria-label="Route puzzle — rotate the arrows to guide the orb home">
+    <section class="game" aria-label="Arrow Escape — clear every arrow from the board">
       <div class="hud">
+        <span class="hud-item" id="level">Level 01</span>
+        <span class="hud-item hud-status" id="status" aria-live="polite">Every arrow wants out.</span>
         <span class="hud-item">Moves: <b id="moves">0</b></span>
-        <span class="hud-item hud-status" id="status" aria-live="polite">Rotate arrows to aim the route.</span>
-        <span class="hud-item">Best: <b id="best">—</b></span>
       </div>
 
-      <div class="board-wrap">
-        <div id="board" class="board" role="group" aria-label="Puzzle board, 8 by 6 tiles"></div>
-        <div id="orb" class="orb" aria-hidden="true"></div>
+      <div class="board-frame">
+        <div id="board" class="board" role="group" aria-label="Puzzle board"></div>
+        <div id="overlay" class="overlay">
+          <p class="overlay-kicker">Board clear</p>
+          <p class="overlay-title" id="overlay-title">Level complete</p>
+          <p class="overlay-sub" id="overlay-sub"></p>
+          <div class="overlay-actions">
+            <button id="again" class="btn btn-solid" type="button">Next level →</button>
+            <a class="btn btn-ghost" href="/">← Home</a>
+          </div>
+        </div>
       </div>
 
       <div class="controls">
-        <button id="travel" class="btn btn-solid" type="button">Travel</button>
-        <button id="scramble" class="btn btn-ghost" type="button">Scramble</button>
-        <button id="hint" class="btn btn-ghost" type="button" title="Shortcut: H">Hint</button>
-        <a class="home-link" href="/">Back to the site <span aria-hidden="true">→</span></a>
+        <button id="restart" class="btn btn-ghost" type="button" title="Shortcut: R">Restart</button>
+        <a class="btn btn-ghost home-btn" href="/">← Home</a>
       </div>
-
-      <p class="tutorial">Click an arrow to rotate it · Tab + Enter works too · H shows the old route</p>
-      <noscript><p class="tutorial">The route game needs JavaScript — the <a href="/">homepage</a> works fine without it.</p></noscript>
     </section>
-
-    <footer class="foot">
-      <p>Hand-built game, no engine — vanilla JS, like everything else here.</p>
-      <p class="foot-links"><a href="/">Portfolio</a> · <a href="/bhukosh.html">BhuKosh case study</a></p>
-    </footer>
   </main>
   <script src="404.js" defer></script>
 </body>

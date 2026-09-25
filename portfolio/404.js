@@ -1,433 +1,546 @@
-// 404 — "Rebuild the route home."
-// A hand-rolled arrow puzzle: rotate tiles to steer the orb from the broken
-// page (start) to home (goal). The orb walks deterministically — each tile
-// points where it goes. Boards are carved with a guaranteed solution, then
-// scrambled, so a route home always exists (decoys may even open a second
-// one — there is always another way home).
+// 404 — "Arrow Escape"
+// Every arrow wants to leave the board in the direction it points. An arrow
+// may exit only when its entire forward path to the edge is clear; removing
+// one arrow can unblock others. Clear the board.
 //
-// Vanilla JS, no engine, no dependencies. Same restraint as the rest of the
-// site. Respects prefers-reduced-motion (travel resolves instantly).
+// Architecture (logic independent of rendering):
+//   STATE    level index, arrow records { id, c, r, dir, state }, moves,
+//            busy lock, epoch counter (invalidates in-flight animations)
+//   LOGIC    pure functions over { cols, rows, arrows }: occupancy set,
+//            forward-path trace, removability, greedy solver (removals are
+//            monotone, so greedy = optimal), reverse-construction generator
+//   RENDER   one <button> per arrow, absolutely positioned via transforms
+//   NAV      restart · next level · home
+//
+// Monotonicity: removing an arrow never blocks another (paths only clear),
+// so a solvable board stays solvable under any legal removal — deadlocks are
+// impossible during play, and any currently-removable arrow is a safe hint.
+// Vanilla JS, no dependencies. Respects prefers-reduced-motion.
 (function () {
   "use strict";
 
-  var COLS = 8;
-  var ROWS = 6;
-  // N, E, S, W — as (dc, dr) deltas
-  var DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  // ---------- directions ----------
+  // N=(0,-1) E=(1,0) S=(0,1) W=(-1,0) — used for paths, motion, generation.
+  var DIRS = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
+  var DIR_ORDER = ["N", "E", "S", "W"];
+  var DIR_NAME = { N: "up", E: "right", S: "down", W: "left" };
 
-  var ARROW_SVG =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-    '<path d="M4 12h14M13 6l6 6-6 6"/></svg>';
-  var START_SVG =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-    '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/>' +
-    '<path d="M9.8 13.2l4.4 4.4M14.2 13.2l-4.4 4.4"/></svg>';
-  var GOAL_SVG =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-    '<path d="M4 11l8-7 8 7"/><path d="M6.5 9.8V20h11V9.8"/></svg>';
+  // ============================================================
+  // LOGIC — pure functions, no DOM
+  // ============================================================
 
+  function key(c, r) { return c + "," + r; }
+
+  function occupancy(arrows) {
+    var set = {};
+    for (var i = 0; i < arrows.length; i++) {
+      var a = arrows[i];
+      if (a && a.state !== "REMOVED") set[key(a.c, a.r)] = true;
+    }
+    return set;
+  }
+
+  // Cells strictly ahead of the arrow until the board edge.
+  function pathCells(arrow, cols, rows) {
+    var d = DIRS[arrow.dir];
+    var cells = [];
+    var c = arrow.c + d[0];
+    var r = arrow.r + d[1];
+    while (c >= 0 && r >= 0 && c < cols && r < rows) {
+      cells.push([c, r]);
+      c += d[0];
+      r += d[1];
+    }
+    return cells;
+  }
+
+  // Removable iff zero path cells are occupied (distance is irrelevant).
+  function isRemovable(arrow, cols, rows, arrows) {
+    if (arrow.state === "REMOVED") return false;
+    var occ = occupancy(arrows);
+    var path = pathCells(arrow, cols, rows);
+    for (var i = 0; i < path.length; i++) {
+      if (occ[key(path[i][0], path[i][1])]) return false;
+    }
+    return true;
+  }
+
+  function removableArrows(cols, rows, arrows) {
+    var out = [];
+    for (var i = 0; i < arrows.length; i++) {
+      if (arrows[i].state !== "REMOVED" && isRemovable(arrows[i], cols, rows, arrows)) {
+        out.push(arrows[i]);
+      }
+    }
+    return out;
+  }
+
+  // Greedy solver: with monotone removals, greedily taking any removable
+  // arrow preserves solvability, so this decides solvability exactly.
+  function solve(cols, rows, arrows) {
+    var live = arrows.filter(function (a) { return a.state !== "REMOVED"; })
+      .map(function (a) { return { c: a.c, r: a.r, dir: a.dir }; });
+    var remaining = live.length;
+    while (remaining > 0) {
+      var progressed = false;
+      for (var i = 0; i < live.length && !progressed; i++) {
+        var a = live[i];
+        if (!a) continue;
+        if (isRemovable(a, cols, rows, live)) {
+          delete live[i];
+          remaining--;
+          progressed = true;
+        }
+      }
+      if (!progressed) return false; // cannot happen for generated levels
+    }
+    return true;
+  }
+
+  // Reverse-construction generator (the placement order IS a solution):
+  // place the last-removed arrow first, then each earlier arrow at a cell
+  // whose forward path avoids every placed arrow — biased toward cells on a
+  // placed arrow's path, which is what forges dependency chains.
+  function generateLevel(cols, rows, count) {
+    for (var attempt = 0; attempt < 200; attempt++) {
+      var placed = [];
+      var occupied = {};
+      var ok = true;
+
+      for (var n = 0; n < count && ok; n++) {
+        // Placement forges the dependency graph:
+        //  60% — extend the ACTIVE chain (place in front of the last-placed
+        //        arrow; long single-direction trains result)
+        //  20% — start a new chain in front of a random placed arrow
+        //  20% — any free cell (independent arrow)
+        var pick = null;
+        if (placed.length) {
+          var roll = Math.random();
+          var base = null;
+          if (roll < 0.6) base = placed[placed.length - 1];
+          else if (roll < 0.8) base = placed[Math.floor(Math.random() * placed.length)];
+          if (base) {
+            var tc = base.c + DIRS[base.dir][0];
+            var tr = base.r + DIRS[base.dir][1];
+            if (tc >= 0 && tr >= 0 && tc < cols && tr < rows && !occupied[key(tc, tr)]) {
+              pick = { c: tc, r: tr, chained: base.dir };
+            }
+          }
+        }
+        if (!pick) {
+          var candidates = [];
+          for (var r = 0; r < rows; r++) {
+            for (var c = 0; c < cols; c++) {
+              if (!occupied[key(c, r)]) candidates.push({ c: c, r: r });
+            }
+          }
+          if (!candidates.length) { ok = false; break; }
+          pick = candidates[Math.floor(Math.random() * candidates.length)];
+        }
+
+        // chained placements prefer the blocked arrow's direction (trains),
+        // but fall back to any fitting direction instead of failing the board
+        var dirs;
+        if (pick.chained) {
+          dirs = [pick.chained].concat(
+            DIR_ORDER.filter(function (d) { return d !== pick.chained; })
+              .sort(function () { return Math.random() - 0.5; })
+          );
+        } else {
+          dirs = DIR_ORDER.slice().sort(function () { return Math.random() - 0.5; });
+        }
+        var done = false;
+
+        for (var di = 0; di < 4 && !done; di++) {
+          var dir = dirs[di];
+          var path = pathCells({ c: pick.c, r: pick.r, dir: dir }, cols, rows);
+          var clear = true;
+          for (var p = 0; p < path.length; p++) {
+            if (occupied[key(path[p][0], path[p][1])]) { clear = false; break; }
+          }
+          if (clear) {
+            placed.push({ c: pick.c, r: pick.r, dir: dir, state: "AVAILABLE" });
+            occupied[key(pick.c, pick.r)] = true;
+            done = true;
+          }
+        }
+        if (!done) ok = false; // cell unusable in any direction; retry board
+      }
+      if (ok && placed.length === count) return placed;
+    }
+    return null;
+  }
+
+  // ============================================================
+  // HAND-AUTHORED TEACHING LEVELS (validated by solve() at load)
+  // ============================================================
+
+  // L1: one lesson — the front arrow leaves first. A teaches by itself.
+  //   → → → .
+  function level1() {
+    return {
+      cols: 4, rows: 1,
+      arrows: [
+        { c: 0, r: 0, dir: "E" },
+        { c: 1, r: 0, dir: "E" },
+        { c: 2, r: 0, dir: "E" },
+      ],
+    };
+  }
+
+  // L2: four directions, two chains crossing the middle.
+  //   . . ↓ .        column chain: (1,2)→(1,1)→(1,0) then exits top... wait:
+  //   ← . . →        left/right arrows exit sideways; down-arrow chain reads
+  //   . . . ↓        bottom-up. Verified by solve() at load.
+  function level2() {
+    return {
+      cols: 4, rows: 3,
+      arrows: [
+        { c: 2, r: 0, dir: "S" },   // blocked by (2,2)
+        { c: 0, r: 1, dir: "E" },   // blocked by (3,1)
+        { c: 3, r: 1, dir: "E" },   // free → unlocks (0,1)
+        { c: 2, r: 2, dir: "S" },   // free → unlocks (2,0)
+        { c: 3, r: 2, dir: "W" },   // blocked by (2,2)
+      ],
+    };
+  }
+
+  var AUTHORED = [level1(), level2()];
+  var GENERATE_FROM = 2; // levels 3.. build procedurally
+
+  // Difficulty curve: arrows on board, board size grows with level.
+  var LEVELS = [
+    null, null,
+    { cols: 5, rows: 4, count: 8 },
+    { cols: 6, rows: 5, count: 12 },
+    { cols: 7, rows: 5, count: 16 },
+  ];
+  var MAX_LEVEL = LEVELS.length; // 5
+
+  // ============================================================
+  // STATE
+  // ============================================================
+
+  var state = {
+    level: 1,
+    cols: 0,
+    rows: 0,
+    arrows: [],
+    moves: 0,
+    wrong: 0,
+    busy: false,   // input lock while an arrow is MOVING
+    won: false,
+    epoch: 0,      // bumps on restart; in-flight animations check it
+  };
+
+  // ---------- DOM ----------
   var boardEl = document.getElementById("board");
-  var orbEl = document.getElementById("orb");
-  var wrapEl = boardEl ? boardEl.parentElement : null;
-  var movesEl = document.getElementById("moves");
-  var bestEl = document.getElementById("best");
   var statusEl = document.getElementById("status");
-  var travelBtn = document.getElementById("travel");
-  var scrambleBtn = document.getElementById("scramble");
-  var hintBtn = document.getElementById("hint");
+  var movesEl = document.getElementById("moves");
+  var levelEl = document.getElementById("level");
+  var restartBtn = document.getElementById("restart");
+  var overlayEl = document.getElementById("overlay");
+  var overlayTitleEl = document.getElementById("overlay-title");
+  var overlaySubEl = document.getElementById("overlay-sub");
+  var againBtn = document.getElementById("again");
 
-  if (!boardEl || !orbEl || !wrapEl || !travelBtn) return;
+  if (!boardEl) return;
 
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  var grid = []; // grid[r][c] = { kind, dir, sol, fixed }
-  var startCell = null;
-  var goalCell = null;
-  var moves = 0;
-  var busy = false;
-  var won = false;
+  // ============================================================
+  // RENDERING
+  // ============================================================
 
-  // ---------- utils ----------
-
-  function rand(n) { return Math.floor(Math.random() * n); }
-
-  function shuffle(a) {
-    for (var i = a.length - 1; i > 0; i--) {
-      var j = rand(i + 1);
-      var t = a[i]; a[i] = a[j]; a[j] = t;
+  function pieceTransform(a, exit) {
+    var d = DIRS[a.dir];
+    var x = a.c * 100;
+    var y = a.r * 100;
+    if (exit) {
+      // travel from current cell to just past the edge
+      var steps = exit.dist + 1;
+      x += d[0] * steps * 100;
+      y += d[1] * steps * 100;
     }
-    return a;
+    return "translate(" + x + "%, " + y + "%)";
   }
 
-  function dirName(d) { return ["north", "east", "south", "west"][d]; }
-
-  function setStatus(msg, isWin) {
-    if (statusEl) {
-      statusEl.textContent = msg;
-      statusEl.classList.toggle("win", !!isWin);
-    }
-  }
-
-  function loadBest() {
-    try { return Number(localStorage.getItem("pf404-best")) || null; }
-    catch (e) { return null; }
-  }
-
-  function saveBest(n) {
-    try { localStorage.setItem("pf404-best", String(n)); } catch (e) { /* private mode */ }
-  }
-
-  function showBest() {
-    var b = loadBest();
-    if (bestEl) bestEl.textContent = b ? b + " moves" : "—";
-  }
-
-  // ---------- board carving ----------
-
-  // Self-avoiding walk from start to goal (random DFS). Returns the path or
-  // null — retried until a path of decent length exists.
-  function carvePath(from, to) {
-    var visited = {};
-    var path = [];
-
-    function key(c, r) { return r * COLS + c; }
-
-    function dfs(c, r) {
-      if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return false;
-      var k = key(c, r);
-      if (visited[k]) return false;
-      visited[k] = true;
-      path.push({ c: c, r: r });
-      if (c === to.c && r === to.r) return true;
-      var order = shuffle([0, 1, 2, 3]);
-      for (var i = 0; i < 4; i++) {
-        if (dfs(c + DIRS[order[i]][0], r + DIRS[order[i]][1])) return true;
-      }
-      path.pop();
-      visited[k] = false;
-      return false;
-    }
-
-    return dfs(from.c, from.r) ? path : null;
-  }
-
-  function dirBetween(a, b) {
-    if (b.c === a.c && b.r === a.r - 1) return 0; // N
-    if (b.c === a.c + 1 && b.r === a.r) return 1; // E
-    if (b.c === a.c && b.r === a.r + 1) return 2; // S
-    if (b.c === a.c - 1 && b.r === a.r) return 3; // W
-    return -1;
-  }
-
-  function newBoard() {
-    var path = null;
-    for (var attempt = 0; attempt < 80 && (!path || path.length < 8); attempt++) {
-      startCell = { c: 0, r: rand(ROWS) };
-      goalCell = { c: COLS - 1, r: rand(ROWS) };
-      path = carvePath(startCell, goalCell);
-    }
-    if (!path) { // practically unreachable on 8×6; fall back to straight row
-      startCell = { c: 0, r: 2 };
-      goalCell = { c: COLS - 1, r: 2 };
-      path = [];
-      for (var c = 0; c < COLS; c++) path.push({ c: c, r: 2 });
-    }
-
-    grid = [];
-    for (var r = 0; r < ROWS; r++) {
-      grid.push([]);
-      for (var cc = 0; cc < COLS; cc++) {
-        grid[r].push({
-          kind: "arrow",      // arrow | start | goal
-          dir: rand(4),       // current direction
-          sol: -1,            // carved solution direction (-1 = decoy)
-          fixed: false,
-        });
-      }
-    }
-
-    // lay the solution along the carved path
-    for (var i = 0; i < path.length - 1; i++) {
-      var cell = grid[path[i].r][path[i].c];
-      var d = dirBetween(path[i], path[i + 1]);
-      cell.sol = d;
-      cell.dir = d;
-      if (i === 0) { cell.kind = "start"; cell.fixed = true; }
-    }
-    var g = grid[goalCell.r][goalCell.c];
-    g.kind = "goal";
-    g.fixed = true;
-    g.dir = -1;
-    g.sol = -1;
-
-    // scramble: every path arrow starts wrong (1–3 turns off), decoys random
-    for (var rr = 0; rr < ROWS; rr++) {
-      for (var ccc = 0; ccc < COLS; ccc++) {
-        var t = grid[rr][ccc];
-        if (t.fixed) continue;
-        if (t.sol >= 0) t.dir = (t.sol + 1 + rand(3)) % 4;
-        else t.dir = rand(4);
-      }
-    }
-  }
-
-  // ---------- rendering ----------
-
-  function rotationDeg(dir) { return (dir - 1) * 90; } // SVG base points east
-
-  function tileAria(cell, r, c) {
-    if (cell.kind === "start") return "The broken page (start) — fixed";
-    if (cell.kind === "goal") return "Home — reach this tile";
-    return "Row " + (r + 1) + ", column " + (c + 1) +
-      " — arrow pointing " + dirName(cell.dir) + ". Activate to rotate clockwise.";
-  }
-
-  function render() {
+  function buildBoard() {
     boardEl.innerHTML = "";
-    boardEl.classList.remove("won");
-    for (var r = 0; r < ROWS; r++) {
-      for (var c = 0; c < COLS; c++) {
-        var cell = grid[r][c];
-        var el = document.createElement("button");
-        el.type = "button";
-        el.className = "tile";
-        el.dataset.r = String(r);
-        el.dataset.c = String(c);
-        if (cell.kind === "start") { el.classList.add("fixed", "tile-start"); el.disabled = true; el.innerHTML = START_SVG; }
-        else if (cell.kind === "goal") { el.classList.add("fixed", "tile-goal"); el.disabled = true; el.innerHTML = GOAL_SVG; }
-        else {
-          el.innerHTML = ARROW_SVG;
-          el.firstElementChild.style.transform = "rotate(" + rotationDeg(cell.dir) + "deg)";
-        }
-        el.setAttribute("aria-label", tileAria(cell, r, c));
-        boardEl.appendChild(el);
-      }
+    boardEl.style.setProperty("--cols", state.cols);
+    boardEl.style.setProperty("--rows", state.rows);
+    boardEl.style.setProperty("--cell", cellSize() + "px");
+
+    for (var i = 0; i < state.arrows.length; i++) {
+      var a = state.arrows[i];
+      var el = document.createElement("button");
+      el.type = "button";
+      el.className = "piece dir-" + a.dir.toLowerCase();
+      el.dataset.id = String(a.id);
+      el.innerHTML =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" ' +
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5"/></svg>';
+      el.style.width = "var(--cell)";
+      el.style.height = "var(--cell)";
+      el.style.transform = pieceTransform(a);
+      boardEl.appendChild(el);
+      a.el = el;
+      paintPiece(a);
     }
   }
 
-  function tileAt(r, c) {
-    return boardEl.children[r * COLS + c];
+  function paintPiece(a) {
+    var el = a.el;
+    if (!el) return;
+    el.classList.toggle("is-removed", a.state === "REMOVED");
+    el.classList.toggle("is-blocked", a.state === "BLOCKED");
+    el.classList.toggle("is-available", a.state === "AVAILABLE");
+    var blocked = a.state === "BLOCKED";
+    if (blocked) el.setAttribute("aria-disabled", "true");
+    else el.removeAttribute("aria-disabled");
+    el.setAttribute("aria-label", describe(a));
   }
 
-  function refreshTile(r, c) {
-    var cell = grid[r][c];
-    var el = tileAt(r, c);
-    el.firstElementChild.style.transform = "rotate(" + rotationDeg(cell.dir) + "deg)";
-    el.setAttribute("aria-label", tileAria(cell, r, c));
+  function describe(a) {
+    var base = "Row " + (a.r + 1) + ", column " + (a.c + 1) + " — arrow pointing " +
+      DIR_NAME[a.dir] + ". ";
+    return base + (a.state === "BLOCKED"
+      ? "Path blocked. Activate to test."
+      : "Path clear. Activate to send it out.");
   }
 
-  // ---------- geometry (orb + trail) ----------
-
-  function centerOf(r, c) {
-    var wrapRect = wrapEl.getBoundingClientRect();
-    var rect = tileAt(r, c).getBoundingClientRect();
-    return {
-      x: rect.left - wrapRect.left + rect.width / 2,
-      y: rect.top - wrapRect.top + rect.height / 2,
-    };
-  }
-
-  function clearTrail() {
-    wrapEl.querySelectorAll(".trail-seg").forEach(function (el) { el.remove(); });
-  }
-
-  function layTrail(a, b) {
-    var seg = document.createElement("div");
-    seg.className = "trail-seg";
-    var dx = b.x - a.x, dy = b.y - a.y;
-    var len = Math.sqrt(dx * dx + dy * dy);
-    seg.style.left = a.x + "px";
-    seg.style.top = a.y + "px";
-    seg.style.width = len + "px";
-    seg.style.transform = "rotate(" + Math.atan2(dy, dx) + "rad)";
-    wrapEl.appendChild(seg);
-  }
-
-  // ---------- the walk ----------
-
-  // Follow arrows from start. Returns { ok, steps, failAt, exitDir, loopAt }.
-  function walk() {
-    var steps = [];
-    var seen = {};
-    var c = startCell.c, r = startCell.r;
-    var guard = COLS * ROWS + 4;
-
-    while (guard--) {
-      var cell = grid[r][c];
-      steps.push({ c: c, r: r });
-      if (cell.kind === "goal") return { ok: true, steps: steps };
-      var k = r * COLS + c;
-      if (seen[k]) return { ok: false, reason: "loop", steps: steps, loopAt: { c: c, r: r } };
-      seen[k] = true;
-      var d = cell.dir;
-      var nc = c + DIRS[d][0];
-      var nr = r + DIRS[d][1];
-      if (nc < 0 || nr < 0 || nc >= COLS || nr >= ROWS) {
-        return { ok: false, reason: "edge", steps: steps, exitDir: d, failAt: { c: c, r: r } };
-      }
-      c = nc; r = nr;
+  function refreshStates() {
+    var rem = removableArrows(state.cols, state.rows, state.arrows);
+    var remSet = {};
+    for (var i = 0; i < rem.length; i++) remSet[rem[i].id] = true;
+    for (var j = 0; j < state.arrows.length; j++) {
+      var a = state.arrows[j];
+      if (a.state === "REMOVED" || a.state === "MOVING") continue;
+      a.state = remSet[a.id] ? "AVAILABLE" : "BLOCKED";
+      paintPiece(a);
     }
-    return { ok: false, reason: "loop", steps: steps };
   }
 
-  // ---------- travel animation ----------
+  function setStatus(msg) {
+    if (statusEl) statusEl.textContent = msg;
+  }
 
-  function animateRun(result, done) {
-    var steps = result.steps;
-    if (reduced || steps.length < 2) { done(); return; }
+  function updateHud() {
+    if (movesEl) movesEl.textContent = String(state.moves);
+    if (levelEl) levelEl.textContent = "Level " + String(state.level).padStart(2, "0");
+  }
 
-    var pts = steps.map(function (s) { return centerOf(s.r, s.c); });
+  // ============================================================
+  // INTERACTION
+  // ============================================================
 
-    if (!result.ok && result.reason === "edge") {
-      var ex = DIRS[result.exitDir];
-      var lastPt = pts[pts.length - 1];
-      pts.push({ x: lastPt.x + ex[0] * 90, y: lastPt.y + ex[1] * 90 });
+  function findArrow(id) {
+    for (var i = 0; i < state.arrows.length; i++) {
+      if (String(state.arrows[i].id) === String(id)) return state.arrows[i];
     }
-
-    for (var i = 1; i < pts.length; i++) layTrail(pts[i - 1], pts[i]);
-
-    var perStep = 230;
-    var duration = Math.min(2600, perStep * (pts.length - 1));
-    var frames = pts.map(function (p, idx) {
-      return {
-        transform: "translate(" + p.x + "px, " + p.y + "px) translate(-50%, -50%)",
-        offset: idx / (pts.length - 1),
-      };
-    });
-    if (!result.ok) frames.push({ opacity: 0, offset: 1 });
-
-    orbEl.classList.add("live");
-    var anim = orbEl.animate(frames, { duration: duration, easing: "cubic-bezier(.4,.1,.3,1)" });
-    anim.onfinish = function () {
-      orbEl.classList.remove("live");
-      done();
-    };
-    // safety: never let a dropped onfinish hang the controls
-    setTimeout(function () {
-      if (busy) { orbEl.classList.remove("live"); done(); }
-    }, duration + 400);
+    return null;
   }
 
-  function travel() {
-    if (busy || won) return;
-    busy = true;
-    travelBtn.disabled = true;
-    clearTrail();
-    setStatus("Travelling…", false);
+  function onPieceActivate(a) {
+    if (state.busy || state.won) return;
+    if (a.state === "REMOVED" || a.state === "MOVING") return;
 
-    var result = walk();
-    animateRun(result, function () {
-      busy = false;
-      travelBtn.disabled = false;
-      if (result.ok) {
-        win(result);
-      } else if (result.reason === "edge") {
-        setStatus("You sailed off the edge of the internet. Rotate and try again.", false);
-      } else {
-        setStatus("A loop, not a route — you've been here before.", false);
-      }
-    });
-  }
-
-  function win(result) {
-    won = true;
-    boardEl.classList.add("won");
-    result.steps.forEach(function (s) {
-      var el = tileAt(s.r, s.c);
-      if (el) el.classList.add("winning");
-    });
-    var msg = "You were never really lost. Home in " + moves + " moves.";
-    var best = loadBest();
-    if (!best || moves < best) {
-      saveBest(moves);
-      showBest();
-      msg += " New best!";
-    }
-    setStatus(msg, true);
-  }
-
-  // ---------- interaction ----------
-
-  function rotate(r, c) {
-    if (busy || won) return;
-    var cell = grid[r][c];
-    if (cell.fixed) return;
-    cell.dir = (cell.dir + 1) % 4;
-    moves++;
-    if (movesEl) movesEl.textContent = String(moves);
-    refreshTile(r, c);
-    setStatus("Rotate arrows to aim the route.", false);
-  }
-
-  boardEl.addEventListener("click", function (e) {
-    var el = e.target.closest(".tile");
-    if (!el || el.disabled) return;
-    rotate(Number(el.dataset.r), Number(el.dataset.c));
-  });
-
-  travelBtn.addEventListener("click", travel);
-
-  function scramble() {
-    if (busy) return;
-    won = false;
-    moves = 0;
-    if (movesEl) movesEl.textContent = "0";
-    clearTrail();
-    orbEl.classList.remove("live");
-    newBoard();
-    render();
-    setStatus("Rotate arrows to aim the route.", false);
-  }
-
-  scrambleBtn.addEventListener("click", scramble);
-
-  // Hint: pulse the first wrong arrow on the route from start (the first tile
-  // whose direction differs from the carved solution).
-  function hint() {
-    if (busy || won) return;
-    var result = walk();
-    if (result.ok) {
-      setStatus("This route already works — press Travel.", false);
+    if (!isRemovable(a, state.cols, state.rows, state.arrows)) {
+      blockedFeedback(a);
       return;
     }
-    for (var i = 0; i < result.steps.length; i++) {
-      var s = result.steps[i];
-      var cell = grid[s.r][s.c];
-      if (cell.kind === "arrow" && cell.sol >= 0 && cell.dir !== cell.sol) {
-        var el = tileAt(s.r, s.c);
-        el.classList.remove("hinting");
-        void el.offsetWidth; // restart the pulse animation
-        el.classList.add("hinting");
-        setTimeout(function () { el.classList.remove("hinting"); }, 1600);
-        setStatus("That one's pointing the wrong way.", false);
-        return;
-      }
-    }
-    setStatus("Close — one of the decoys is tempting you. Follow the lights.", false);
+
+    exitArrow(a);
   }
 
-  hintBtn.addEventListener("click", hint);
+  function blockedFeedback(a) {
+    state.wrong++;
+    setStatus("Blocked — something is in its way.");
+    if (a.el && !reduced) {
+      a.el.classList.remove("shake");
+      void a.el.offsetWidth;
+      a.el.classList.add("shake");
+    }
+    if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) {} }
+  }
+
+  function exitArrow(a) {
+    state.busy = true;
+    a.state = "MOVING";
+    if (a.el) a.el.classList.add("is-moving");
+    paintPiece(a);
+
+    var d = DIRS[a.dir];
+    var dist = a.dir === "E" ? state.cols - 1 - a.c
+      : a.dir === "W" ? a.c
+      : a.dir === "S" ? state.rows - 1 - a.r
+      : a.r;
+    var myEpoch = state.epoch;
+
+    if (reduced) {
+      finishExit(a, myEpoch);
+      return;
+    }
+
+    // distance-scaled duration: fast and satisfying, never slow
+    var dur = 280 + dist * 45;
+    var el = a.el;
+    el.style.transition = "transform " + dur + "ms cubic-bezier(.5,.05,.7,.4), opacity 120ms linear " + (dur - 120) + "ms";
+    el.style.transform = pieceTransform(a, { dist: dist });
+
+    var finished = false;
+    function onDone() {
+      if (finished) return;
+      finished = true;
+      finishExit(a, myEpoch);
+    }
+    el.addEventListener("transitionend", onDone, { once: true });
+    setTimeout(onDone, dur + 80); // safety net if transitionend is missed
+  }
+
+  function finishExit(a, myEpoch) {
+    if (myEpoch !== state.epoch) return; // board was reset mid-animation
+    a.state = "REMOVED";
+    if (a.el) {
+      a.el.style.transition = "";
+      a.el.style.transform = "";
+      a.el.classList.remove("is-moving");
+      a.el.classList.add("is-removed");
+    }
+    state.moves++;
+    state.busy = false;
+
+    var left = state.arrows.filter(function (x) { return x.state !== "REMOVED"; }).length;
+    if (left === 0) {
+      win();
+    } else {
+      refreshStates();
+      updateHud();
+      var avail = state.arrows.filter(function (x) { return x.state === "AVAILABLE"; }).length;
+      setStatus(avail === 1
+        ? "One arrow can leave."
+        : avail + " arrows can leave. " + left + " on the board.");
+    }
+  }
+
+  // ---------- completion ----------
+
+  function win() {
+    state.won = true;
+    updateHud();
+    setStatus("Board clear.");
+    if (overlayEl) {
+      var last = state.wrong === 0;
+      if (overlayTitleEl) overlayTitleEl.textContent = "Level complete";
+      if (overlaySubEl) {
+        overlaySubEl.textContent = "Board clear in " + state.moves +
+          (last ? " — no wasted moves." : " moves.");
+      }
+      overlayEl.classList.add("show");
+    }
+  }
+
+  // ---------- level lifecycle ----------
+
+  function cellSize() {
+    var vw = Math.min(window.innerWidth || 1024, 700);
+    var avail = vw - 92;
+    var byRows = 380 / state.rows;
+    return Math.max(34, Math.min(62, Math.floor(Math.min(avail / state.cols, byRows))));
+  }
+
+  function loadLevel(n) {
+    state.level = n;
+    state.won = false;
+    state.busy = false;
+    state.moves = 0;
+    state.wrong = 0;
+    state.epoch++;
+
+    var layout;
+    if (n <= AUTHORED.length) {
+      layout = AUTHORED[n - 1];
+    } else {
+      var spec = LEVELS[n - 1];
+      layout = null;
+      for (var tries = 0; tries < 200 && !layout; tries++) {
+        var arrows = generateLevel(spec.cols, spec.rows, spec.count);
+        if (arrows && solve(spec.cols, spec.rows, arrows)) {
+          layout = { cols: spec.cols, rows: spec.rows, arrows: arrows };
+        }
+      }
+      if (!layout) layout = AUTHORED[1]; // never ship an unvalidated board
+    }
+
+    state.cols = layout.cols;
+    state.rows = layout.rows;
+    state.arrows = layout.arrows.map(function (a, i) {
+      return { id: i + 1, c: a.c, r: a.r, dir: a.dir, state: "AVAILABLE", el: null };
+    });
+
+    // authored boards are fixed puzzles — verify, then mark states honestly
+    if (!solve(state.cols, state.rows, state.arrows)) {
+      // unreachable for shipped constants; guards against future edits
+      state.arrows = AUTHORED[0].arrows.map(function (a, i) {
+        return { id: i + 1, c: a.c, r: a.r, dir: a.dir, state: "AVAILABLE", el: null };
+      });
+      state.cols = AUTHORED[0].cols;
+      state.rows = AUTHORED[0].rows;
+    }
+
+    if (overlayEl) overlayEl.classList.remove("show");
+    buildBoard();
+    refreshStates();
+    updateHud();
+    setStatus(n === 1
+      ? "Every arrow wants out. Click one whose path is clear."
+      : "Clear the board.");
+  }
+
+  function restart() {
+    loadLevel(state.level);
+  }
+
+  function nextLevel() {
+    // past the last authored spec, "next" loops the final level with a fresh
+    // generated board — the puzzle keeps going
+    if (state.level < MAX_LEVEL) loadLevel(state.level + 1);
+    else loadLevel(state.level);
+  }
+
+  // ---------- events ----------
+
+  boardEl.addEventListener("click", function (e) {
+    var el = e.target.closest(".piece");
+    if (!el) return;
+    var a = findArrow(el.dataset.id);
+    if (a) onPieceActivate(a);
+  });
+
+  boardEl.addEventListener("keydown", function (e) {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    var el = e.target.closest(".piece");
+    if (!el) return;
+    e.preventDefault();
+    var a = findArrow(el.dataset.id);
+    if (a) onPieceActivate(a);
+  });
+
+  if (restartBtn) restartBtn.addEventListener("click", restart);
+  if (againBtn) againBtn.addEventListener("click", nextLevel);
+
+  // keyboard: R restarts
   document.addEventListener("keydown", function (e) {
-    if (e.key === "h" || e.key === "H") hint();
+    if ((e.key === "r" || e.key === "R") && !e.metaKey && !e.ctrlKey && !e.altKey) restart();
+  });
+
+  window.addEventListener("resize", function () {
+    boardEl.style.setProperty("--cell", cellSize() + "px");
   });
 
   // ---------- boot ----------
-
-  showBest();
-  scramble();
-
-  // Hidden dev/easter-egg hook: /404#warp lays the carved solution. QA uses
-  // it to verify the win path; players who find it just skip their own game.
-  if (location.hash === "#warp") {
-    for (var wr = 0; wr < ROWS; wr++) {
-      for (var wc = 0; wc < COLS; wc++) {
-        var wt = grid[wr][wc];
-        if (!wt.fixed && wt.sol >= 0) { wt.dir = wt.sol; refreshTile(wr, wc); }
-      }
-    }
-    window.__pf404 = { walk: walk, grid: grid, startCell: startCell, goalCell: goalCell };
-  }
+  // #level-N deep-link (also used for QA): /404.html#level-3
+  var hashLevel = parseInt((location.hash.match(/^#level-(\d+)$/) || [])[1], 10);
+  loadLevel(hashLevel >= 1 && hashLevel <= MAX_LEVEL ? hashLevel : 1);
 })();

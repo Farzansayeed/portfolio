@@ -1,7 +1,8 @@
 /* ============================================================
-   404 — arrow route puzzle
+   404 — Arrow Escape
    Same design system as the main site: dark editorial, warm sand.
-   Hand-written, no frameworks, no engine.
+   Hand-written, no frameworks. The game is the visual interest;
+   the frame stays restrained.
    ============================================================ */
 
 :root {
@@ -15,7 +16,6 @@
   --accent-dim: rgba(211, 169, 92, 0.13);
   --hairline: rgba(244, 242, 238, 0.09);
   --hairline-strong: rgba(244, 242, 238, 0.22);
-  --ok: #8fc97e;
   --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -25,7 +25,7 @@
 
 body {
   background:
-    radial-gradient(ellipse 60% 42% at 50% 0%, rgba(211, 169, 92, 0.07), transparent 70%),
+    radial-gradient(ellipse 60% 42% at 50% 0%, rgba(211, 169, 92, 0.06), transparent 70%),
     var(--bg);
   color: var(--text);
   font-family: var(--font);
@@ -35,7 +35,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px var(--gutter, 20px) 28px;
+  padding: 40px 20px 28px;
 }
 
 ::selection { background: var(--accent); color: #14100a; }
@@ -46,36 +46,55 @@ body {
   border-radius: 2px;
 }
 
-.shell { width: min(680px, 100%); }
+.shell { width: min(720px, 100%); }
 
 /* ---------- header ---------- */
 
-.kicker {
+.head { text-align: center; }
+
+.code {
   font-family: var(--mono);
-  font-size: 11.5px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--accent);
+  font-size: clamp(3.4rem, 10vw, 5.2rem);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  line-height: 1;
+  animation: rise 0.7s var(--ease) both;
 }
 
 h1 {
-  font-size: clamp(2rem, 6vw, 3.2rem);
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 1.08;
-  margin: 10px 0 12px;
+  font-size: clamp(1.05rem, 2.4vw, 1.25rem);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  margin-top: 14px;
+  animation: rise 0.7s var(--ease) 0.08s both;
 }
 
-.lede { color: var(--text-2); font-size: 16px; max-width: 52ch; }
+.lede {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+  margin-top: 10px;
+  animation: rise 0.7s var(--ease) 0.16s both;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
 
 /* ---------- game panel ---------- */
 
 .game {
-  margin-top: 30px;
+  margin-top: 34px;
   border: 1px solid var(--hairline);
   border-radius: 18px;
   background: linear-gradient(180deg, rgba(211, 169, 92, 0.045), transparent 55%), var(--bg-lift);
-  padding: clamp(18px, 4vw, 28px);
+  padding: clamp(16px, 3.5vw, 26px);
+  animation: rise 0.7s var(--ease) 0.24s both;
 }
 
 .hud {
@@ -86,105 +105,158 @@ h1 {
   font-size: 12px;
   color: var(--text-3);
   letter-spacing: 0.04em;
+  min-height: 1.5em;
 }
 
 .hud b { color: var(--text); font-weight: 600; }
 
-.hud-status { flex: 1 1 200px; min-height: 1.4em; }
+#level { color: var(--accent); letter-spacing: 0.14em; text-transform: uppercase; }
 
-.hud-status.win { color: var(--ok); }
+.hud-status { flex: 1 1 220px; text-align: center; }
 
 /* ---------- board ---------- */
 
-.board-wrap { position: relative; margin-top: 16px; }
+.board-frame { position: relative; margin-top: 18px; }
 
 .board {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 6px;
+  --cols: 4;
+  --rows: 1;
+  --cell: 56px;
+  position: relative;
+  width: calc(var(--cell) * var(--cols));
+  height: calc(var(--cell) * var(--rows));
+  margin-inline: auto;
 }
 
-.tile {
-  aspect-ratio: 1;
-  border: 1px solid var(--hairline);
-  border-radius: 10px;
-  background: var(--bg);
+/* faint spatial structure — dots at cell centers, not a spreadsheet grid */
+.board::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(244, 242, 238, 0.07) 1px, transparent 1.2px);
+  background-size: var(--cell) var(--cell);
+  background-position: calc(var(--cell) / 2) calc(var(--cell) / 2);
+}
+
+/* ---------- pieces ---------- */
+
+.piece {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--cell);
+  height: var(--cell);
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--text-2);
   display: grid;
   place-items: center;
-  cursor: pointer;
-  padding: 0;
-  color: var(--text-3);
-  transition: border-color 0.2s var(--ease), background 0.2s var(--ease), color 0.2s var(--ease);
+  transition: transform 0.18s var(--ease), color 0.2s, opacity 0.2s;
   -webkit-tap-highlight-color: transparent;
+  /* rotate the glyph by direction; the wrapper transform stays positional */
 }
 
-.tile:hover { border-color: var(--hairline-strong); color: var(--text-2); }
-
-.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-.tile svg {
-  width: 62%;
-  height: 62%;
-  transition: transform 0.3s var(--ease), stroke 0.2s;
+.piece svg {
+  width: 52%;
+  height: 52%;
+  display: block;
 }
 
-/* the two fixed endpoints */
-.tile.fixed { cursor: default; }
+.piece.dir-n svg { transform: rotate(-90deg); }
+.piece.dir-e svg { transform: rotate(0deg); }
+.piece.dir-s svg { transform: rotate(90deg); }
+.piece.dir-w svg { transform: rotate(180deg); }
 
-.tile.fixed svg { transition: none; }
-
-.tile-start {
-  color: var(--text-2);
-  border-style: dashed;
-  border-color: var(--hairline-strong);
-  background: transparent;
-}
-
-.tile-goal {
-  color: var(--accent);
-  border-color: var(--accent-dim);
-  background: var(--accent-dim);
-}
-
-/* solved state tints the whole route */
-.board.won .tile { pointer-events: none; }
-
-.tile.winning {
-  border-color: var(--accent-dim);
-  background: var(--accent-dim);
-  color: var(--accent-strong);
-}
-
-/* ---------- orb trail ---------- */
-
-.orb {
+/* the directional hover nudge uses a nested span so it composes with
+   the positional transform on the button itself */
+.piece::after {
+  content: "";
   position: absolute;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #f6dfae, var(--accent-strong) 55%, var(--accent));
-  box-shadow: 0 0 10px 2px rgba(211, 169, 92, 0.55), 0 0 26px 6px rgba(211, 169, 92, 0.22);
+  inset: 12%;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  transition: border-color 0.2s, background 0.2s;
+  pointer-events: none;
+}
+
+.piece.is-available { color: var(--text); }
+.piece.is-available:hover { color: var(--accent-strong); }
+.piece.is-available:hover::after {
+  border-color: var(--accent-dim);
+  background: rgba(211, 169, 92, 0.05);
+}
+
+.piece.is-blocked { color: var(--text-3); opacity: 0.75; cursor: default; }
+
+.piece.is-removed { opacity: 0; pointer-events: none; }
+
+/* focus ring hugs the glyph cell */
+.piece:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* blocked feedback: short shake, no red */
+.piece.shake { animation: shake 0.26s var(--ease); }
+
+@keyframes shake {
+  0%, 100% { translate: 0 0; }
+  25% { translate: -3px 0; }
+  50% { translate: 3px 0; }
+  75% { translate: -2px 0; }
+}
+
+/* ---------- completion overlay ---------- */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: 6px;
+  background: rgba(11, 10, 8, 0.82);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border-radius: 12px;
   opacity: 0;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  z-index: 2;
+  visibility: hidden;
+  transition: opacity 0.38s var(--ease), visibility 0.38s;
 }
 
-.orb.live { opacity: 1; }
+.overlay.show { opacity: 1; visibility: visible; }
 
-/* path ghost left behind by the travelling orb */
-.trail-seg {
-  position: absolute;
-  background: linear-gradient(90deg, var(--accent-dim), rgba(211, 169, 92, 0.4));
-  height: 2px;
-  border-radius: 2px;
-  transform-origin: 0 50%;
-  pointer-events: none;
-  z-index: 1;
-  animation: trail-in 0.5s var(--ease) both;
+.overlay-kicker {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 
-@keyframes trail-in { from { opacity: 0; } to { opacity: 1; } }
+.overlay-title {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.overlay-sub {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+  margin-bottom: 12px;
+}
+
+.overlay-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
 
 /* ---------- controls ---------- */
 
@@ -196,12 +268,14 @@ h1 {
   margin-top: 20px;
 }
 
+.home-btn { margin-left: auto; }
+
 .btn {
   display: inline-flex;
   align-items: center;
-  padding: 10px 20px;
+  padding: 9px 18px;
   border-radius: 999px;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
   font-family: inherit;
   letter-spacing: -0.01em;
@@ -212,67 +286,22 @@ h1 {
 
 .btn-solid { background: var(--text); color: #14100a; }
 .btn-solid:hover { background: #fff; transform: translateY(-1px); }
-.btn-solid:disabled { opacity: 0.45; cursor: default; transform: none; }
 
 .btn-ghost { border-color: var(--hairline-strong); background: none; color: var(--text); }
 .btn-ghost:hover { border-color: var(--accent); color: var(--accent-strong); transform: translateY(-1px); }
 
-.home-link {
-  margin-left: auto;
-  font-size: 14px;
-  color: var(--text-2);
-  transition: color 0.25s;
-}
+/* ---------- responsive ---------- */
 
-.home-link:hover { color: var(--accent-strong); }
-
-.tutorial {
-  margin-top: 16px;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: var(--text-3);
-}
-
-.tutorial a { color: var(--text-2); text-decoration: underline; }
-
-/* ---------- footer ---------- */
-
-.foot {
-  margin-top: 26px;
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  color: var(--text-3);
-  font-size: 12.5px;
-}
-
-.foot-links a { color: var(--text-2); transition: color 0.25s; }
-.foot-links a:hover { color: var(--text); }
-
-/* hint pulse — marks the first wrong arrow on the route */
-.tile.hinting {
-  border-color: var(--accent);
-  animation: hint-pulse 0.8s var(--ease) 2;
-}
-
-@keyframes hint-pulse {
-  0%, 100% { box-shadow: none; }
-  50% { box-shadow: 0 0 0 4px var(--accent-dim); }
+@media (max-width: 560px) {
+  body { padding: 28px 14px 22px; }
+  .hud-status { order: 3; flex-basis: 100%; }
+  .controls .btn { padding: 9px 15px; }
 }
 
 /* ---------- reduced motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .tile svg, .btn, .home-link { transition: none; }
-  .orb { transition: none; }
-  .trail-seg { animation: none; }
-}
-
-@media (max-width: 520px) {
-  .board { gap: 4px; }
-  .tile { border-radius: 7px; }
-  .controls .btn { padding: 9px 16px; }
-  .home-link { margin-left: 0; flex-basis: 100%; }
+  .code, h1, .lede, .game { animation: none; }
+  .piece, .btn, .overlay, .piece::after { transition: none; }
+  .piece.shake { animation: none; }
 }
