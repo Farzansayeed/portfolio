@@ -1,546 +1,529 @@
-// 404 — "Arrow Escape"
-// Every arrow wants to leave the board in the direction it points. An arrow
-// may exit only when its entire forward path to the edge is clear; removing
-// one arrow can unblock others. Clear the board.
+// 404 — "Arrow Escape" · long-tail polyline edition
 //
-// Architecture (logic independent of rendering):
-//   STATE    level index, arrow records { id, c, r, dir, state }, moves,
-//            busy lock, epoch counter (invalidates in-flight animations)
-//   LOGIC    pure functions over { cols, rows, arrows }: occupancy set,
-//            forward-path trace, removability, greedy solver (removals are
-//            monotone, so greedy = optimal), reverse-construction generator
-//   RENDER   one <button> per arrow, absolutely positioned via transforms
-//   NAV      restart · next level · home
+// Every arrow is ONE continuous axis-aligned polyline: a long tail with
+// 90° bends and a single arrowhead. The FINAL segment's direction is the
+// arrow's escape direction (bends in the tail don't change it). Tapping an
+// arrow whose corridor to the edge is clear extracts it — a rigid
+// translation along the escape direction, arrowhead leading, tail following
+// — until the whole line has left the board. Blocked taps cost one of three
+// hearts. Clear every arrow to escape the 404.
 //
-// Monotonicity: removing an arrow never blocks another (paths only clear),
-// so a solvable board stays solvable under any legal removal — deadlocks are
-// impossible during play, and any currently-removable arrow is a safe hint.
-// Vanilla JS, no dependencies. Respects prefers-reduced-motion.
+// Architecture:
+//   LEVELS  frozen, solver-validated level data (hand-authored tutorials
+//           + offline-generated, frozen as literals — nothing random at
+//           runtime, so the game is deterministic and fast)
+//   LOGIC   pure functions over geometry: cell rasterization, corridor
+//           trace, blocking, backtracking solver with state-hashing
+//   STATE   gameStatus (READY/PLAYING/ANIMATING/LEVEL_COMPLETE/GAME_OVER),
+//           hearts, moves, epoch guard for in-flight animations
+//   RENDER  one SVG per level; each arrow = <g> with fat invisible hit
+//           path, thin visible line, chevron head
+//   UI      404 frame, hearts, status line, overlays, restart/home
+//
+// Vanilla JS + SVG. No dependencies. Honors prefers-reduced-motion.
 (function () {
   "use strict";
 
-  // ---------- directions ----------
-  // N=(0,-1) E=(1,0) S=(0,1) W=(-1,0) — used for paths, motion, generation.
-  var DIRS = { N: [0, -1], E: [1, 0], S: [0, 1], W: [-1, 0] };
-  var DIR_ORDER = ["N", "E", "S", "W"];
-  var DIR_NAME = { N: "up", E: "right", S: "down", W: "left" };
-
   // ============================================================
-  // LOGIC — pure functions, no DOM
+  // LEVELS — frozen data (generated + solver-validated offline)
   // ============================================================
 
-  function key(c, r) { return c + "," + r; }
+  var LEVELS = [
+    { W: 10, H: 6, arrows: [
+      { id: 1, pts: [[5, 2],[8, 2]] },
+      { id: 2, pts: [[0, 5],[2, 5],[2, 2],[4, 2]] }
+    ] },
+    { W: 10, H: 8, arrows: [
+      { id: 1, pts: [[1, 7],[1, 4]] },
+      { id: 2, pts: [[1, 2],[1, 0]] },
+      { id: 3, pts: [[9, 3],[5, 3],[5, 6]] },
+      { id: 4, pts: [[8, 6],[8, 4],[8, 1]] }
+    ] },
+    { W: 11, H: 11, arrows: [
+      { id: 1, pts: [[3, 4],[6, 4],[6, 9],[9, 9]] },
+      { id: 2, pts: [[4, 1],[4, 3],[10, 3],[10, 6]] },
+      { id: 3, pts: [[5, 5],[5, 6],[1, 6],[1, 9]] },
+      { id: 4, pts: [[7, 0],[5, 0],[5, 2]] },
+      { id: 5, pts: [[3, 1],[1, 1],[1, 5]] },
+      { id: 6, pts: [[0, 4],[0, 9]] },
+      { id: 7, pts: [[10, 7],[10, 10],[7, 10]] }
+    ] },
+    { W: 12, H: 13, arrows: [
+      { id: 1, pts: [[2, 0],[3, 0],[3, 6],[7, 6]] },
+      { id: 2, pts: [[11, 7],[11, 5],[5, 5],[5, 1]] },
+      { id: 3, pts: [[3, 7],[9, 7]] },
+      { id: 4, pts: [[10, 7],[10, 10],[4, 10]] },
+      { id: 5, pts: [[6, 3],[6, 0],[11, 0]] },
+      { id: 6, pts: [[2, 8],[8, 8]] },
+      { id: 7, pts: [[11, 2],[8, 2],[8, 4]] },
+      { id: 8, pts: [[0, 8],[0, 7],[2, 7],[2, 3]] },
+      { id: 9, pts: [[3, 9],[9, 9]] }
+    ] },
+    { W: 13, H: 14, arrows: [
+      { id: 1, pts: [[5, 6],[5, 8],[11, 8],[11, 12]] },
+      { id: 2, pts: [[7, 0],[9, 0],[9, 5]] },
+      { id: 3, pts: [[2, 4],[2, 5],[8, 5]] },
+      { id: 4, pts: [[7, 13],[5, 13],[5, 9],[0, 9]] },
+      { id: 5, pts: [[3, 4],[3, 1],[8, 1]] },
+      { id: 6, pts: [[10, 13],[10, 11],[6, 11]] },
+      { id: 7, pts: [[2, 8],[0, 8],[0, 2]] },
+      { id: 8, pts: [[11, 2],[10, 2],[10, 6],[6, 6]] },
+      { id: 9, pts: [[12, 4],[12, 10]] },
+      { id: 10, pts: [[11, 7],[6, 7]] },
+      { id: 11, pts: [[1, 0],[1, 4]] }
+    ] }
+  ];
 
-  function occupancy(arrows) {
+  var START_HEARTS = 3;
+  // after the last level, "next" cycles the three generated boards
+  var NEXT_OF = [1, 2, 3, 4, 3];
+
+  // ============================================================
+  // LOGIC — pure geometry, no DOM
+  // ============================================================
+
+  var DIRV = { U: [0, -1], D: [0, 1], L: [-1, 0], R: [1, 0] };
+
+  function dirOf(a) {
+    var p = a.pts, n = p.length;
+    var x1 = p[n - 2][0], y1 = p[n - 2][1], x2 = p[n - 1][0], y2 = p[n - 1][1];
+    if (y2 === y1 && x2 > x1) return "R";
+    if (y2 === y1 && x2 < x1) return "L";
+    if (x2 === x1 && y2 > y1) return "D";
+    if (x2 === x1 && y2 < y1) return "U";
+    return "R";
+  }
+
+  var cellCache = new Map(); // arrow object -> Set("x,y")  (per level copy)
+  function cellsOf(a) {
+    var cached = cellCache.get(a);
+    if (cached) return cached;
     var set = {};
-    for (var i = 0; i < arrows.length; i++) {
-      var a = arrows[i];
-      if (a && a.state !== "REMOVED") set[key(a.c, a.r)] = true;
+    for (var i = 0; i < a.pts.length - 1; i++) {
+      var x = a.pts[i][0], y = a.pts[i][1];
+      var x2 = a.pts[i + 1][0], y2 = a.pts[i + 1][1];
+      var dx = Math.sign(x2 - x), dy = Math.sign(y2 - y);
+      for (;;) {
+        set[x + "," + y] = true;
+        if (x === x2 && y === y2) break;
+        x += dx; y += dy;
+      }
     }
+    cellCache.set(a, set);
     return set;
   }
 
-  // Cells strictly ahead of the arrow until the board edge.
-  function pathCells(arrow, cols, rows) {
-    var d = DIRS[arrow.dir];
+  // Cells strictly beyond the head, in escape direction, to the edge.
+  function corridorOf(a, W, H) {
+    var d = DIRV[a.dir];
+    var x = a.pts[a.pts.length - 1][0] + d[0];
+    var y = a.pts[a.pts.length - 1][1] + d[1];
     var cells = [];
-    var c = arrow.c + d[0];
-    var r = arrow.r + d[1];
-    while (c >= 0 && r >= 0 && c < cols && r < rows) {
-      cells.push([c, r]);
-      c += d[0];
-      r += d[1];
+    while (x >= 0 && y >= 0 && x < W && y < H) {
+      cells.push(x, y);
+      x += d[0]; y += d[1];
     }
     return cells;
   }
 
-  // Removable iff zero path cells are occupied (distance is irrelevant).
-  function isRemovable(arrow, cols, rows, arrows) {
-    if (arrow.state === "REMOVED") return false;
-    var occ = occupancy(arrows);
-    var path = pathCells(arrow, cols, rows);
-    for (var i = 0; i < path.length; i++) {
-      if (occ[key(path[i][0], path[i][1])]) return false;
+  function isBlocked(a, live, W, H) {
+    var occ = {};
+    for (var i = 0; i < live.length; i++) {
+      if (live[i] === a || live[i].state === "REMOVED") continue;
+      var cs = cellsOf(live[i]);
+      for (var k in cs) occ[k] = true;
     }
-    return true;
+    var cor = corridorOf(a, W, H);
+    for (var j = 0; j < cor.length; j += 2) {
+      if (occ[cor[j] + "," + cor[j + 1]]) return true;
+    }
+    return false;
   }
 
-  function removableArrows(cols, rows, arrows) {
-    var out = [];
-    for (var i = 0; i < arrows.length; i++) {
-      if (arrows[i].state !== "REMOVED" && isRemovable(arrows[i], cols, rows, arrows)) {
-        out.push(arrows[i]);
+  // Distance (user units) to translate until the whole arrow is off-board.
+  function exitDistance(a, W, H) {
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (var i = 0; i < a.pts.length; i++) {
+      var x = a.pts[i][0], y = a.pts[i][1];
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    switch (a.dir) {
+      case "R": return W - minX;
+      case "L": return maxX + 1;
+      case "D": return H - minY;
+      case "U": return maxY + 1;
+    }
+    return W;
+  }
+
+  // Backtracking solver with state-hashing — validates every level at load.
+  function solveLevel(W, H, arrows) {
+    var remaining = {}, count = 0;
+    for (var i = 0; i < arrows.length; i++) { remaining[arrows[i].id] = true; count++; }
+    var visited = {};
+
+    function rec() {
+      if (count === 0) return true;
+      var ids = Object.keys(remaining).map(Number).sort(function (a, b) { return a - b; });
+      var k = ids.join("|");
+      if (visited[k]) return false;
+      visited[k] = true;
+
+      var live = [];
+      for (var j = 0; j < arrows.length; j++) {
+        if (remaining[arrows[j].id]) live.push(arrows[j]);
       }
-    }
-    return out;
-  }
-
-  // Greedy solver: with monotone removals, greedily taking any removable
-  // arrow preserves solvability, so this decides solvability exactly.
-  function solve(cols, rows, arrows) {
-    var live = arrows.filter(function (a) { return a.state !== "REMOVED"; })
-      .map(function (a) { return { c: a.c, r: a.r, dir: a.dir }; });
-    var remaining = live.length;
-    while (remaining > 0) {
-      var progressed = false;
-      for (var i = 0; i < live.length && !progressed; i++) {
-        var a = live[i];
-        if (!a) continue;
-        if (isRemovable(a, cols, rows, live)) {
-          delete live[i];
-          remaining--;
-          progressed = true;
+      var anyFree = false;
+      for (var m = 0; m < live.length; m++) {
+        if (!isBlocked(live[m], live, W, H)) {
+          anyFree = true;
+          delete remaining[live[m].id];
+          count--;
+          if (rec()) { count++; remaining[live[m].id] = true; return true; }
+          count++;
+          remaining[live[m].id] = true;
         }
       }
-      if (!progressed) return false; // cannot happen for generated levels
+      return anyFree ? false : false;
     }
-    return true;
-  }
-
-  // Reverse-construction generator (the placement order IS a solution):
-  // place the last-removed arrow first, then each earlier arrow at a cell
-  // whose forward path avoids every placed arrow — biased toward cells on a
-  // placed arrow's path, which is what forges dependency chains.
-  function generateLevel(cols, rows, count) {
-    for (var attempt = 0; attempt < 200; attempt++) {
-      var placed = [];
-      var occupied = {};
-      var ok = true;
-
-      for (var n = 0; n < count && ok; n++) {
-        // Placement forges the dependency graph:
-        //  60% — extend the ACTIVE chain (place in front of the last-placed
-        //        arrow; long single-direction trains result)
-        //  20% — start a new chain in front of a random placed arrow
-        //  20% — any free cell (independent arrow)
-        var pick = null;
-        if (placed.length) {
-          var roll = Math.random();
-          var base = null;
-          if (roll < 0.6) base = placed[placed.length - 1];
-          else if (roll < 0.8) base = placed[Math.floor(Math.random() * placed.length)];
-          if (base) {
-            var tc = base.c + DIRS[base.dir][0];
-            var tr = base.r + DIRS[base.dir][1];
-            if (tc >= 0 && tr >= 0 && tc < cols && tr < rows && !occupied[key(tc, tr)]) {
-              pick = { c: tc, r: tr, chained: base.dir };
-            }
-          }
-        }
-        if (!pick) {
-          var candidates = [];
-          for (var r = 0; r < rows; r++) {
-            for (var c = 0; c < cols; c++) {
-              if (!occupied[key(c, r)]) candidates.push({ c: c, r: r });
-            }
-          }
-          if (!candidates.length) { ok = false; break; }
-          pick = candidates[Math.floor(Math.random() * candidates.length)];
-        }
-
-        // chained placements prefer the blocked arrow's direction (trains),
-        // but fall back to any fitting direction instead of failing the board
-        var dirs;
-        if (pick.chained) {
-          dirs = [pick.chained].concat(
-            DIR_ORDER.filter(function (d) { return d !== pick.chained; })
-              .sort(function () { return Math.random() - 0.5; })
-          );
-        } else {
-          dirs = DIR_ORDER.slice().sort(function () { return Math.random() - 0.5; });
-        }
-        var done = false;
-
-        for (var di = 0; di < 4 && !done; di++) {
-          var dir = dirs[di];
-          var path = pathCells({ c: pick.c, r: pick.r, dir: dir }, cols, rows);
-          var clear = true;
-          for (var p = 0; p < path.length; p++) {
-            if (occupied[key(path[p][0], path[p][1])]) { clear = false; break; }
-          }
-          if (clear) {
-            placed.push({ c: pick.c, r: pick.r, dir: dir, state: "AVAILABLE" });
-            occupied[key(pick.c, pick.r)] = true;
-            done = true;
-          }
-        }
-        if (!done) ok = false; // cell unusable in any direction; retry board
-      }
-      if (ok && placed.length === count) return placed;
-    }
-    return null;
+    return rec();
   }
 
   // ============================================================
-  // HAND-AUTHORED TEACHING LEVELS (validated by solve() at load)
+  // STATE + DOM
   // ============================================================
 
-  // L1: one lesson — the front arrow leaves first. A teaches by itself.
-  //   → → → .
-  function level1() {
-    return {
-      cols: 4, rows: 1,
-      arrows: [
-        { c: 0, r: 0, dir: "E" },
-        { c: 1, r: 0, dir: "E" },
-        { c: 2, r: 0, dir: "E" },
-      ],
-    };
-  }
-
-  // L2: four directions, two chains crossing the middle.
-  //   . . ↓ .        column chain: (1,2)→(1,1)→(1,0) then exits top... wait:
-  //   ← . . →        left/right arrows exit sideways; down-arrow chain reads
-  //   . . . ↓        bottom-up. Verified by solve() at load.
-  function level2() {
-    return {
-      cols: 4, rows: 3,
-      arrows: [
-        { c: 2, r: 0, dir: "S" },   // blocked by (2,2)
-        { c: 0, r: 1, dir: "E" },   // blocked by (3,1)
-        { c: 3, r: 1, dir: "E" },   // free → unlocks (0,1)
-        { c: 2, r: 2, dir: "S" },   // free → unlocks (2,0)
-        { c: 3, r: 2, dir: "W" },   // blocked by (2,2)
-      ],
-    };
-  }
-
-  var AUTHORED = [level1(), level2()];
-  var GENERATE_FROM = 2; // levels 3.. build procedurally
-
-  // Difficulty curve: arrows on board, board size grows with level.
-  var LEVELS = [
-    null, null,
-    { cols: 5, rows: 4, count: 8 },
-    { cols: 6, rows: 5, count: 12 },
-    { cols: 7, rows: 5, count: 16 },
-  ];
-  var MAX_LEVEL = LEVELS.length; // 5
-
-  // ============================================================
-  // STATE
-  // ============================================================
-
-  var state = {
-    level: 1,
-    cols: 0,
-    rows: 0,
-    arrows: [],
-    moves: 0,
-    wrong: 0,
-    busy: false,   // input lock while an arrow is MOVING
-    won: false,
-    epoch: 0,      // bumps on restart; in-flight animations check it
-  };
-
-  // ---------- DOM ----------
-  var boardEl = document.getElementById("board");
+  var svg = document.getElementById("board");
   var statusEl = document.getElementById("status");
+  var heartsEl = document.getElementById("hearts");
   var movesEl = document.getElementById("moves");
   var levelEl = document.getElementById("level");
   var restartBtn = document.getElementById("restart");
   var overlayEl = document.getElementById("overlay");
-  var overlayTitleEl = document.getElementById("overlay-title");
-  var overlaySubEl = document.getElementById("overlay-sub");
-  var againBtn = document.getElementById("again");
+  var kickerEl = document.getElementById("overlay-kicker");
+  var titleEl = document.getElementById("overlay-title");
+  var subEl = document.getElementById("overlay-sub");
+  var primaryBtn = document.getElementById("overlay-primary");
+  var homeLink = document.getElementById("overlay-home");
 
-  if (!boardEl) return;
+  if (!svg) return;
 
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  var game = {
+    status: "READY",        // READY | PLAYING | ANIMATING | LEVEL_COMPLETE | GAME_OVER
+    levelIndex: 0,
+    hearts: START_HEARTS,
+    moves: 0,
+    arrows: [],
+    epoch: 0,
+  };
+
+  var DIR_ANGLE = { R: 0, D: 90, L: 180, U: 270 };
+  var DIR_WORD = { U: "up", D: "down", L: "left", R: "right" };
+
   // ============================================================
-  // RENDERING
+  // RENDER
   // ============================================================
 
-  function pieceTransform(a, exit) {
-    var d = DIRS[a.dir];
-    var x = a.c * 100;
-    var y = a.r * 100;
-    if (exit) {
-      // travel from current cell to just past the edge
-      var steps = exit.dist + 1;
-      x += d[0] * steps * 100;
-      y += d[1] * steps * 100;
-    }
-    return "translate(" + x + "%, " + y + "%)";
+  var SVGNS = "http://www.w3.org/2000/svg";
+
+  function el(name, attrs) {
+    var e = document.createElementNS(SVGNS, name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  function pathD(pts) {
+    var d = "M " + pts[0][0] + " " + pts[0][1];
+    for (var i = 1; i < pts.length; i++) d += " L " + pts[i][0] + " " + pts[i][1];
+    return d;
+  }
+
+  function describe(a, idx) {
+    var head = a.pts[a.pts.length - 1];
+    var blocked = isBlocked(a, game.arrows, game.W, game.H);
+    return "Arrow " + (idx + 1) + ", head at column " + (head[0] + 1) + ", row " +
+      (head[1] + 1) + ", escaping " + DIR_WORD[a.dir] + ". " +
+      (blocked ? "Path blocked." : "Path clear. Activate to escape.");
   }
 
   function buildBoard() {
-    boardEl.innerHTML = "";
-    boardEl.style.setProperty("--cols", state.cols);
-    boardEl.style.setProperty("--rows", state.rows);
-    boardEl.style.setProperty("--cell", cellSize() + "px");
+    var L = LEVELS[game.levelIndex];
+    game.W = L.W;
+    game.H = L.H;
+    cellCache.clear();
+    svg.innerHTML = "";
+    svg.setAttribute("viewBox", "-0.6 -0.6 " + (L.W + 1.2) + " " + (L.H + 1.2));
 
-    for (var i = 0; i < state.arrows.length; i++) {
-      var a = state.arrows[i];
-      var el = document.createElement("button");
-      el.type = "button";
-      el.className = "piece dir-" + a.dir.toLowerCase();
-      el.dataset.id = String(a.id);
-      el.innerHTML =
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" ' +
-        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-        '<path d="M5 12h13M13 6.5l5.5 5.5-5.5 5.5"/></svg>';
-      el.style.width = "var(--cell)";
-      el.style.height = "var(--cell)";
-      el.style.transform = pieceTransform(a);
-      boardEl.appendChild(el);
-      a.el = el;
-      paintPiece(a);
+    game.arrows = L.arrows.map(function (src) {
+      return {
+        id: src.id,
+        pts: src.pts.map(function (p) { return [p[0], p[1]]; }),
+        dir: dirOf(src),
+        state: "IDLE",
+        el: null,
+      };
+    });
+
+    // solver gate: a level that cannot ship must never render
+    if (!solveLevel(L.W, L.H, game.arrows)) {
+      console.error("level", game.levelIndex + 1, "failed solver; aborting render");
+      return;
     }
-  }
 
-  function paintPiece(a) {
-    var el = a.el;
-    if (!el) return;
-    el.classList.toggle("is-removed", a.state === "REMOVED");
-    el.classList.toggle("is-blocked", a.state === "BLOCKED");
-    el.classList.toggle("is-available", a.state === "AVAILABLE");
-    var blocked = a.state === "BLOCKED";
-    if (blocked) el.setAttribute("aria-disabled", "true");
-    else el.removeAttribute("aria-disabled");
-    el.setAttribute("aria-label", describe(a));
-  }
+    var sorted = game.arrows.slice().sort(function (a, b) {
+      var la = cellsOf(a), lb = cellsOf(b);
+      return Object.keys(lb).length - Object.keys(la).length; // long tails first
+    });
 
-  function describe(a) {
-    var base = "Row " + (a.r + 1) + ", column " + (a.c + 1) + " — arrow pointing " +
-      DIR_NAME[a.dir] + ". ";
-    return base + (a.state === "BLOCKED"
-      ? "Path blocked. Activate to test."
-      : "Path clear. Activate to send it out.");
+    sorted.forEach(function (a) {
+      var g = el("g", { class: "arrow", "data-id": a.id, tabindex: "0", role: "button" });
+
+      var hit = el("path", {
+        d: pathD(a.pts),
+        class: "hit",
+        fill: "none",
+        "stroke-width": "0.85",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+      });
+      var line = el("path", {
+        d: pathD(a.pts),
+        class: "line",
+        fill: "none",
+        "stroke-width": "0.085",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+      });
+      var h = a.pts[a.pts.length - 1];
+      var head = el("path", {
+        d: "M -0.3 -0.3 L 0 0 L -0.3 0.3",
+        class: "head",
+        fill: "none",
+        "stroke-width": "0.085",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+        transform: "translate(" + h[0] + " " + h[1] + ") rotate(" + DIR_ANGLE[a.dir] + ")",
+      });
+
+      g.appendChild(hit);
+      g.appendChild(line);
+      g.appendChild(head);
+      svg.appendChild(g);
+      a.el = g;
+
+      g.addEventListener("pointerdown", function (e) { e.preventDefault(); onActivate(a); });
+      g.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onActivate(a); }
+      });
+    });
+
+    refreshStates();
   }
 
   function refreshStates() {
-    var rem = removableArrows(state.cols, state.rows, state.arrows);
-    var remSet = {};
-    for (var i = 0; i < rem.length; i++) remSet[rem[i].id] = true;
-    for (var j = 0; j < state.arrows.length; j++) {
-      var a = state.arrows[j];
-      if (a.state === "REMOVED" || a.state === "MOVING") continue;
-      a.state = remSet[a.id] ? "AVAILABLE" : "BLOCKED";
-      paintPiece(a);
+    var order = [];
+    game.arrows.forEach(function (a) { if (a.state !== "REMOVED") order.push(a); });
+
+    order.forEach(function (a) {
+      var blocked = isBlocked(a, game.arrows, game.W, game.H);
+      a.el.classList.toggle("is-blocked", blocked);
+      a.el.classList.toggle("is-available", !blocked);
+      if (blocked) a.el.setAttribute("aria-disabled", "true");
+      else a.el.removeAttribute("aria-disabled");
+      var idx = game.arrows.indexOf(a);
+      a.el.setAttribute("aria-label", describe(a, idx));
+    });
+
+    var free = order.filter(function (a) {
+      return !isBlocked(a, game.arrows, game.W, game.H);
+    }).length;
+    var left = order.length;
+    if (game.status === "PLAYING" || game.status === "READY") {
+      setStatus(left === 0 ? "" :
+        free === 0 ? "Every exit is blocked. Look again." :
+        free === 1 ? "One arrow can escape." :
+        free + " arrows can escape. " + left + " on the board.");
     }
   }
 
-  function setStatus(msg) {
-    if (statusEl) statusEl.textContent = msg;
-  }
+  function setStatus(msg) { if (statusEl) statusEl.textContent = msg; }
 
   function updateHud() {
-    if (movesEl) movesEl.textContent = String(state.moves);
-    if (levelEl) levelEl.textContent = "Level " + String(state.level).padStart(2, "0");
+    if (movesEl) movesEl.textContent = String(game.moves);
+    if (levelEl) levelEl.textContent = "Level " + String(game.levelIndex + 1).padStart(2, "0");
+    if (heartsEl) {
+      var spans = heartsEl.querySelectorAll(".heart");
+      spans.forEach(function (s, i) {
+        s.classList.toggle("lost", i >= game.hearts);
+      });
+    }
   }
 
   // ============================================================
   // INTERACTION
   // ============================================================
 
-  function findArrow(id) {
-    for (var i = 0; i < state.arrows.length; i++) {
-      if (String(state.arrows[i].id) === String(id)) return state.arrows[i];
-    }
-    return null;
-  }
+  function onActivate(a) {
+    if (game.status !== "PLAYING" && game.status !== "READY") return;
+    if (a.state !== "IDLE") return;
 
-  function onPieceActivate(a) {
-    if (state.busy || state.won) return;
-    if (a.state === "REMOVED" || a.state === "MOVING") return;
-
-    if (!isRemovable(a, state.cols, state.rows, state.arrows)) {
-      blockedFeedback(a);
+    if (isBlocked(a, game.arrows, game.W, game.H)) {
+      blockedTap(a);
       return;
     }
-
-    exitArrow(a);
+    extract(a);
   }
 
-  function blockedFeedback(a) {
-    state.wrong++;
-    setStatus("Blocked — something is in its way.");
+  function blockedTap(a) {
+    game.hearts--;
+    updateHud();
+    setStatus("Blocked — the way out isn't clear. −1 heart");
     if (a.el && !reduced) {
       a.el.classList.remove("shake");
-      void a.el.offsetWidth;
+      void a.el.getBoundingClientRect();
       a.el.classList.add("shake");
     }
-    if (navigator.vibrate) { try { navigator.vibrate(10); } catch (e) {} }
+    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) {} }
+
+    if (game.hearts <= 0) {
+      game.status = "GAME_OVER";
+      window.setTimeout(showGameOver, reduced ? 60 : 420);
+    }
   }
 
-  function exitArrow(a) {
-    state.busy = true;
+  function extract(a) {
+    game.status = "ANIMATING";
     a.state = "MOVING";
-    if (a.el) a.el.classList.add("is-moving");
-    paintPiece(a);
+    a.el.classList.remove("is-available", "is-blocked");
+    a.el.classList.add("is-moving");
+    a.el.setAttribute("aria-disabled", "true");
 
-    var d = DIRS[a.dir];
-    var dist = a.dir === "E" ? state.cols - 1 - a.c
-      : a.dir === "W" ? a.c
-      : a.dir === "S" ? state.rows - 1 - a.r
-      : a.r;
-    var myEpoch = state.epoch;
+    var dist = exitDistance(a, game.W, game.H);
+    var d = DIRV[a.dir];
+    var myEpoch = game.epoch;
+
+    function finish() {
+      if (myEpoch !== game.epoch) return; // restart happened mid-flight
+      a.state = "REMOVED";
+      if (a.el) a.el.remove();
+      game.moves++;
+      game.status = "PLAYING";
+      updateHud();
+
+      var left = game.arrows.filter(function (x) { return x.state !== "REMOVED"; }).length;
+      if (left === 0) {
+        win();
+      } else {
+        refreshStates();
+      }
+    }
 
     if (reduced) {
-      finishExit(a, myEpoch);
+      a.el.style.opacity = "0";
+      window.setTimeout(finish, 160);
       return;
     }
 
-    // distance-scaled duration: fast and satisfying, never slow
-    var dur = 280 + dist * 45;
-    var el = a.el;
-    el.style.transition = "transform " + dur + "ms cubic-bezier(.5,.05,.7,.4), opacity 120ms linear " + (dur - 120) + "ms";
-    el.style.transform = pieceTransform(a, { dist: dist });
-
-    var finished = false;
+    var dur = Math.min(900, 300 + dist * 26);
+    var anim = a.el.animate(
+      [
+        { transform: "translate(0px, 0px)", opacity: 1 },
+        { transform: "translate(" + d[0] * dist + "px, " + d[1] * dist + "px)", opacity: 1, offset: 0.82 },
+        { transform: "translate(" + d[0] * (dist + 1) + "px, " + d[1] * (dist + 1) + "px)", opacity: 0 },
+      ],
+      { duration: dur, easing: "cubic-bezier(0.55, 0.06, 0.45, 0.95)" }
+    );
+    var done = false;
     function onDone() {
-      if (finished) return;
-      finished = true;
-      finishExit(a, myEpoch);
+      if (done) return;
+      done = true;
+      finish();
     }
-    el.addEventListener("transitionend", onDone, { once: true });
-    setTimeout(onDone, dur + 80); // safety net if transitionend is missed
+    anim.onfinish = onDone;
+    anim.oncancel = onDone;
+    window.setTimeout(onDone, dur + 120); // safety net
   }
 
-  function finishExit(a, myEpoch) {
-    if (myEpoch !== state.epoch) return; // board was reset mid-animation
-    a.state = "REMOVED";
-    if (a.el) {
-      a.el.style.transition = "";
-      a.el.style.transform = "";
-      a.el.classList.remove("is-moving");
-      a.el.classList.add("is-removed");
-    }
-    state.moves++;
-    state.busy = false;
+  // ============================================================
+  // OVERLAYS
+  // ============================================================
 
-    var left = state.arrows.filter(function (x) { return x.state !== "REMOVED"; }).length;
-    if (left === 0) {
-      win();
-    } else {
-      refreshStates();
-      updateHud();
-      var avail = state.arrows.filter(function (x) { return x.state === "AVAILABLE"; }).length;
-      setStatus(avail === 1
-        ? "One arrow can leave."
-        : avail + " arrows can leave. " + left + " on the board.");
-    }
+  function showOverlay(kicker, title, sub, primaryLabel, primaryAction, showHome) {
+    if (!overlayEl) return;
+    kickerEl.textContent = kicker;
+    titleEl.textContent = title;
+    subEl.textContent = sub;
+    primaryBtn.textContent = primaryLabel;
+    primaryBtn.onclick = primaryAction;
+    homeLink.hidden = !showHome;
+    overlayEl.classList.add("show");
+    primaryBtn.focus();
   }
-
-  // ---------- completion ----------
 
   function win() {
-    state.won = true;
-    updateHud();
-    setStatus("Board clear.");
-    if (overlayEl) {
-      var last = state.wrong === 0;
-      if (overlayTitleEl) overlayTitleEl.textContent = "Level complete";
-      if (overlaySubEl) {
-        overlaySubEl.textContent = "Board clear in " + state.moves +
-          (last ? " — no wasted moves." : " moves.");
-      }
-      overlayEl.classList.add("show");
-    }
+    game.status = "LEVEL_COMPLETE";
+    setStatus("");
+    window.setTimeout(function () {
+      showOverlay(
+        "Board clear",
+        "Level complete",
+        "You found your way out in " + game.moves + " moves — " +
+          game.hearts + (game.hearts === 1 ? " heart" : " hearts") + " to spare.",
+        "Next level →",
+        function () { loadLevel(NEXT_OF[game.levelIndex]); },
+        true
+      );
+    }, reduced ? 60 : 420);
   }
 
-  // ---------- level lifecycle ----------
-
-  function cellSize() {
-    var vw = Math.min(window.innerWidth || 1024, 700);
-    var avail = vw - 92;
-    var byRows = 380 / state.rows;
-    return Math.max(34, Math.min(62, Math.floor(Math.min(avail / state.cols, byRows))));
+  function showGameOver() {
+    setStatus("");
+    showOverlay(
+      "Out of hearts",
+      "Game over",
+      "The exit was blocked.",
+      "Try again",
+      function () { loadLevel(game.levelIndex); },
+      true
+    );
   }
 
-  function loadLevel(n) {
-    state.level = n;
-    state.won = false;
-    state.busy = false;
-    state.moves = 0;
-    state.wrong = 0;
-    state.epoch++;
+  // ============================================================
+  // LIFECYCLE
+  // ============================================================
 
-    var layout;
-    if (n <= AUTHORED.length) {
-      layout = AUTHORED[n - 1];
-    } else {
-      var spec = LEVELS[n - 1];
-      layout = null;
-      for (var tries = 0; tries < 200 && !layout; tries++) {
-        var arrows = generateLevel(spec.cols, spec.rows, spec.count);
-        if (arrows && solve(spec.cols, spec.rows, arrows)) {
-          layout = { cols: spec.cols, rows: spec.rows, arrows: arrows };
-        }
-      }
-      if (!layout) layout = AUTHORED[1]; // never ship an unvalidated board
-    }
-
-    state.cols = layout.cols;
-    state.rows = layout.rows;
-    state.arrows = layout.arrows.map(function (a, i) {
-      return { id: i + 1, c: a.c, r: a.r, dir: a.dir, state: "AVAILABLE", el: null };
-    });
-
-    // authored boards are fixed puzzles — verify, then mark states honestly
-    if (!solve(state.cols, state.rows, state.arrows)) {
-      // unreachable for shipped constants; guards against future edits
-      state.arrows = AUTHORED[0].arrows.map(function (a, i) {
-        return { id: i + 1, c: a.c, r: a.r, dir: a.dir, state: "AVAILABLE", el: null };
-      });
-      state.cols = AUTHORED[0].cols;
-      state.rows = AUTHORED[0].rows;
-    }
+  function loadLevel(idx) {
+    game.levelIndex = idx;
+    game.status = "READY";
+    game.hearts = START_HEARTS;
+    game.moves = 0;
+    game.epoch++;
 
     if (overlayEl) overlayEl.classList.remove("show");
     buildBoard();
-    refreshStates();
     updateHud();
-    setStatus(n === 1
-      ? "Every arrow wants out. Click one whose path is clear."
-      : "Clear the board.");
+    setStatus(idx === 0
+      ? "Tap an arrow whose path to the edge is clear."
+      : "Clear the board. Blocked taps cost a heart.");
   }
 
   function restart() {
-    loadLevel(state.level);
+    if (game.status === "ANIMATING") game.epoch++; // orphan in-flight exits
+    loadLevel(game.levelIndex);
   }
-
-  function nextLevel() {
-    // past the last authored spec, "next" loops the final level with a fresh
-    // generated board — the puzzle keeps going
-    if (state.level < MAX_LEVEL) loadLevel(state.level + 1);
-    else loadLevel(state.level);
-  }
-
-  // ---------- events ----------
-
-  boardEl.addEventListener("click", function (e) {
-    var el = e.target.closest(".piece");
-    if (!el) return;
-    var a = findArrow(el.dataset.id);
-    if (a) onPieceActivate(a);
-  });
-
-  boardEl.addEventListener("keydown", function (e) {
-    if (e.key !== "Enter" && e.key !== " ") return;
-    var el = e.target.closest(".piece");
-    if (!el) return;
-    e.preventDefault();
-    var a = findArrow(el.dataset.id);
-    if (a) onPieceActivate(a);
-  });
 
   if (restartBtn) restartBtn.addEventListener("click", restart);
-  if (againBtn) againBtn.addEventListener("click", nextLevel);
-
-  // keyboard: R restarts
   document.addEventListener("keydown", function (e) {
     if ((e.key === "r" || e.key === "R") && !e.metaKey && !e.ctrlKey && !e.altKey) restart();
   });
 
-  window.addEventListener("resize", function () {
-    boardEl.style.setProperty("--cell", cellSize() + "px");
-  });
-
-  // ---------- boot ----------
-  // #level-N deep-link (also used for QA): /404.html#level-3
-  var hashLevel = parseInt((location.hash.match(/^#level-(\d+)$/) || [])[1], 10);
-  loadLevel(hashLevel >= 1 && hashLevel <= MAX_LEVEL ? hashLevel : 1);
+  // #level-N deep links (also the QA hook)
+  var m = location.hash.match(/^#level-(\d+)$/);
+  var start = m ? parseInt(m[1], 10) - 1 : 0;
+  loadLevel(start >= 0 && start < LEVELS.length ? start : 0);
 })();

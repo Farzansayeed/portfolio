@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>404 — Farzan Sayeed Hashmi</title>
-  <meta name="description" content="This page doesn't exist. The exit does — clear the board.">
+  <meta name="description" content="This page doesn't exist. But there is still a way out.">
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="#0b0a08">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -16,25 +16,31 @@
     <header class="head">
       <p class="code" aria-hidden="true">404</p>
       <h1>Page not found.</h1>
-      <p class="lede">But you can still find your way out.</p>
+      <p class="lede">But there is still a way out.</p>
     </header>
 
-    <section class="game" aria-label="Arrow Escape — clear every arrow from the board">
+    <section class="game" aria-label="Arrow Escape — help every arrow leave the board">
       <div class="hud">
         <span class="hud-item" id="level">Level 01</span>
-        <span class="hud-item hud-status" id="status" aria-live="polite">Every arrow wants out.</span>
+        <span class="hud-item hud-status" id="status" aria-live="polite"></span>
+        <span class="hud-item hearts" id="hearts" aria-label="Hearts remaining">
+          <span class="heart" aria-hidden="true"></span>
+          <span class="heart" aria-hidden="true"></span>
+          <span class="heart" aria-hidden="true"></span>
+        </span>
         <span class="hud-item">Moves: <b id="moves">0</b></span>
       </div>
 
       <div class="board-frame">
-        <div id="board" class="board" role="group" aria-label="Puzzle board"></div>
-        <div id="overlay" class="overlay">
-          <p class="overlay-kicker">Board clear</p>
-          <p class="overlay-title" id="overlay-title">Level complete</p>
+        <svg id="board" class="board" role="group" aria-label="Puzzle board"></svg>
+
+        <div id="overlay" class="overlay" hidden>
+          <p class="overlay-kicker" id="overlay-kicker"></p>
+          <p class="overlay-title" id="overlay-title"></p>
           <p class="overlay-sub" id="overlay-sub"></p>
           <div class="overlay-actions">
-            <button id="again" class="btn btn-solid" type="button">Next level →</button>
-            <a class="btn btn-ghost" href="/">← Home</a>
+            <button id="overlay-primary" class="btn btn-solid" type="button"></button>
+            <a id="overlay-home" class="btn btn-ghost" href="/">← Home</a>
           </div>
         </div>
       </div>
@@ -44,6 +50,8 @@
         <a class="btn btn-ghost home-btn" href="/">← Home</a>
       </div>
     </section>
+
+    <p class="hint-note">Tap an arrow with a clear path to the edge · Blocked taps cost a heart · R restarts</p>
   </main>
   <script src="404.js" defer></script>
 </body>

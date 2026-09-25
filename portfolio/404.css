@@ -1,8 +1,7 @@
 /* ============================================================
-   404 — Arrow Escape
-   Same design system as the main site: dark editorial, warm sand.
-   Hand-written, no frameworks. The game is the visual interest;
-   the frame stays restrained.
+   404 — Arrow Escape (long-tail polyline edition)
+   Portfolio design system: dark editorial, warm sand, hairlines.
+   The tangled line work is the visual identity; the frame stays quiet.
    ============================================================ */
 
 :root {
@@ -16,6 +15,7 @@
   --accent-dim: rgba(211, 169, 92, 0.13);
   --hairline: rgba(244, 242, 238, 0.09);
   --hairline-strong: rgba(244, 242, 238, 0.22);
+  --blocked: #b0705e;
   --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
@@ -35,7 +35,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px 28px;
+  padding: 36px 20px 24px;
 }
 
 ::selection { background: var(--accent); color: #14100a; }
@@ -46,7 +46,7 @@ body {
   border-radius: 2px;
 }
 
-.shell { width: min(720px, 100%); }
+.shell { width: min(760px, 100%); }
 
 /* ---------- header ---------- */
 
@@ -54,10 +54,9 @@ body {
 
 .code {
   font-family: var(--mono);
-  font-size: clamp(3.4rem, 10vw, 5.2rem);
+  font-size: clamp(3.2rem, 9vw, 5rem);
   font-weight: 500;
   letter-spacing: 0.06em;
-  color: var(--text);
   line-height: 1;
   animation: rise 0.7s var(--ease) both;
 }
@@ -89,10 +88,10 @@ h1 {
 /* ---------- game panel ---------- */
 
 .game {
-  margin-top: 34px;
+  margin-top: 30px;
   border: 1px solid var(--hairline);
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(211, 169, 92, 0.045), transparent 55%), var(--bg-lift);
+  background: linear-gradient(180deg, rgba(211, 169, 92, 0.04), transparent 55%), var(--bg-lift);
   padding: clamp(16px, 3.5vw, 26px);
   animation: rise 0.7s var(--ease) 0.24s both;
 }
@@ -100,6 +99,7 @@ h1 {
 .hud {
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   gap: 8px 18px;
   font-family: var(--mono);
   font-size: 12px;
@@ -114,103 +114,93 @@ h1 {
 
 .hud-status { flex: 1 1 220px; text-align: center; }
 
+/* hearts — small diamonds, not emoji */
+.hearts { display: inline-flex; gap: 7px; align-items: center; }
+
+.heart {
+  width: 10px;
+  height: 10px;
+  background: var(--accent);
+  border-radius: 2px;
+  transform: rotate(45deg);
+  transition: opacity 0.3s var(--ease), transform 0.3s var(--ease), background 0.3s;
+}
+
+.heart.lost {
+  background: none;
+  border: 1px solid var(--hairline-strong);
+  transform: rotate(45deg) scale(0.82);
+  opacity: 0.6;
+}
+
 /* ---------- board ---------- */
 
-.board-frame { position: relative; margin-top: 18px; }
+.board-frame { position: relative; margin-top: 14px; }
 
 .board {
-  --cols: 4;
-  --rows: 1;
-  --cell: 56px;
-  position: relative;
-  width: calc(var(--cell) * var(--cols));
-  height: calc(var(--cell) * var(--rows));
-  margin-inline: auto;
-}
-
-/* faint spatial structure — dots at cell centers, not a spreadsheet grid */
-.board::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: radial-gradient(rgba(244, 242, 238, 0.07) 1px, transparent 1.2px);
-  background-size: var(--cell) var(--cell);
-  background-position: calc(var(--cell) / 2) calc(var(--cell) / 2);
-}
-
-/* ---------- pieces ---------- */
-
-.piece {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: var(--cell);
-  height: var(--cell);
-  border: none;
-  background: none;
-  padding: 0;
-  cursor: pointer;
-  color: var(--text-2);
-  display: grid;
-  place-items: center;
-  transition: transform 0.18s var(--ease), color 0.2s, opacity 0.2s;
-  -webkit-tap-highlight-color: transparent;
-  /* rotate the glyph by direction; the wrapper transform stays positional */
-}
-
-.piece svg {
-  width: 52%;
-  height: 52%;
   display: block;
+  width: 100%;
+  max-width: min(620px, 100%);
+  height: auto;
+  max-height: 54svh;
+  margin-inline: auto;
+  touch-action: manipulation;
 }
 
-.piece.dir-n svg { transform: rotate(-90deg); }
-.piece.dir-e svg { transform: rotate(0deg); }
-.piece.dir-s svg { transform: rotate(90deg); }
-.piece.dir-w svg { transform: rotate(180deg); }
+.arrow { cursor: pointer; }
 
-/* the directional hover nudge uses a nested span so it composes with
-   the positional transform on the button itself */
-.piece::after {
-  content: "";
-  position: absolute;
-  inset: 12%;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  transition: border-color 0.2s, background 0.2s;
-  pointer-events: none;
+.arrow .hit {
+  stroke: transparent;
+  pointer-events: stroke; /* forgiving taps on thin lines */
 }
 
-.piece.is-available { color: var(--text); }
-.piece.is-available:hover { color: var(--accent-strong); }
-.piece.is-available:hover::after {
-  border-color: var(--accent-dim);
-  background: rgba(211, 169, 92, 0.05);
+.arrow .line {
+  stroke: var(--text-2);
+  transition: stroke 0.2s, opacity 0.2s;
 }
 
-.piece.is-blocked { color: var(--text-3); opacity: 0.75; cursor: default; }
-
-.piece.is-removed { opacity: 0; pointer-events: none; }
-
-/* focus ring hugs the glyph cell */
-.piece:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 10px;
+.arrow .head {
+  stroke: var(--text-2);
+  transition: stroke 0.2s, opacity 0.2s;
 }
 
-/* blocked feedback: short shake, no red */
-.piece.shake { animation: shake 0.26s var(--ease); }
+/* available: brighter, invites the tap */
+.arrow.is-available .line,
+.arrow.is-available .head { stroke: var(--text); opacity: 0.95; }
+
+.arrow.is-available:hover .line,
+.arrow.is-available:hover .head { stroke: var(--accent-strong); }
+
+.arrow.is-available:hover { filter: drop-shadow(0 0 6px rgba(211, 169, 92, 0.25)); }
+
+/* blocked: dimmer, still tappable (costs a heart) */
+.arrow.is-blocked .line,
+.arrow.is-blocked .head { stroke: var(--text-3); opacity: 0.55; }
+
+.arrow.is-moving .line,
+.arrow.is-moving .head { stroke: var(--accent-strong); }
+
+.arrow:focus-visible {
+  outline: none;
+}
+
+.arrow:focus-visible .line,
+.arrow:focus-visible .head { stroke: var(--accent-strong); }
+
+/* blocked feedback: horizontal shake + terracotta flash */
+.arrow.shake { animation: shake 0.26s var(--ease); }
+
+.arrow.shake .line,
+.arrow.shake .head { stroke: var(--blocked); }
 
 @keyframes shake {
   0%, 100% { translate: 0 0; }
-  25% { translate: -3px 0; }
-  50% { translate: 3px 0; }
+  25% { translate: -4px 0; }
+  50% { translate: 4px 0; }
   75% { translate: -2px 0; }
 }
 
-/* ---------- completion overlay ---------- */
+/* ---------- overlay ---------- */
 
 .overlay {
   position: absolute;
@@ -219,7 +209,7 @@ h1 {
   place-content: center;
   text-align: center;
   gap: 6px;
-  background: rgba(11, 10, 8, 0.82);
+  background: rgba(11, 10, 8, 0.86);
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   border-radius: 12px;
@@ -229,6 +219,8 @@ h1 {
 }
 
 .overlay.show { opacity: 1; visibility: visible; }
+.overlay[hidden] { display: none; }
+.overlay.show[hidden] { display: grid; }
 
 .overlay-kicker {
   font-family: var(--mono);
@@ -282,6 +274,7 @@ h1 {
   cursor: pointer;
   border: 1px solid transparent;
   transition: transform 0.3s var(--ease), background 0.3s, border-color 0.3s, color 0.3s;
+  text-decoration: none;
 }
 
 .btn-solid { background: var(--text); color: #14100a; }
@@ -290,18 +283,29 @@ h1 {
 .btn-ghost { border-color: var(--hairline-strong); background: none; color: var(--text); }
 .btn-ghost:hover { border-color: var(--accent); color: var(--accent-strong); transform: translateY(-1px); }
 
+.hint-note {
+  margin-top: 16px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--text-3);
+  opacity: 0.7;
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 560px) {
-  body { padding: 28px 14px 22px; }
-  .hud-status { order: 3; flex-basis: 100%; }
+  body { padding: 24px 14px 18px; }
+  .hud-status { order: 4; flex-basis: 100%; }
   .controls .btn { padding: 9px 15px; }
+  .board { max-height: 46svh; }
 }
 
 /* ---------- reduced motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
   .code, h1, .lede, .game { animation: none; }
-  .piece, .btn, .overlay, .piece::after { transition: none; }
-  .piece.shake { animation: none; }
+  .heart, .btn, .arrow .line, .arrow .head, .overlay { transition: none; }
+  .arrow.shake { animation: none; }
 }
