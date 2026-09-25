@@ -133,6 +133,31 @@ h1 {
   opacity: 0.6;
 }
 
+/* heart loss: burst → fracture → drop → settle into the empty slot.
+   Geometric, elegant — no cartoon particles. Runs once on the losing
+   heart; the slot's resting state is the outline diamond above. */
+.heart.fracturing {
+  animation: heart-break 0.48s var(--ease) both;
+}
+
+@keyframes heart-break {
+  0%   { transform: rotate(45deg) scale(1); background: var(--accent); opacity: 1; }
+  18%  { transform: rotate(45deg) scale(1.35); background: var(--accent-strong); opacity: 1; }
+  34%  { transform: rotate(38deg) scale(1.05) translate(0, 0);
+         clip-path: polygon(50% 8%, 88% 34%, 88% 66%, 50% 92%, 12% 66%, 12% 34%);
+         opacity: 1; }
+  52%  { transform: rotate(58deg) scale(0.92) translate(1.5px, 3px);
+         clip-path: polygon(50% 0%, 76% 30%, 88% 66%, 50% 84%, 12% 66%, 24% 30%);
+         opacity: 0.9; }
+  74%  { transform: rotate(45deg) scale(0.7) translate(2px, 7px);
+         clip-path: polygon(50% 0%, 100% 50%, 62% 62%, 50% 100%, 0% 50%, 38% 38%);
+         opacity: 0.35; }
+  100% { transform: rotate(45deg) scale(0.82) translate(0, 0);
+         clip-path: none;
+         background: none;
+         opacity: 0.6; }
+}
+
 /* ---------- board ---------- */
 
 .board-frame { position: relative; margin-top: 14px; }
@@ -180,25 +205,37 @@ h1 {
 .arrow.is-moving .line,
 .arrow.is-moving .head { stroke: var(--accent-strong); }
 
+/* escaping: tail-follow extraction drives dasharray/dashoffset from JS;
+   the line exits through the board edge, so nothing needs masking */
+.arrow.is-moving .line { opacity: 1; }
+
+/* anticipation: the arrow loads backward a hair (JS sets the translate);
+   the squash deforms ONLY the head chevron — the long tail never bends.
+   fill-box keeps the scale anchored to the chevron itself. */
+.arrow.is-anticipating .head {
+  animation: head-squash 240ms var(--ease) both;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes head-squash {
+  0%   { transform: none; }
+  25%  { transform: scale(0.82, 1.22); }  /* movement axis ×, cross axis y */
+  55%  { transform: scale(1.18, 0.85); }  /* launch overshoot, stretched */
+  100% { transform: none; }               /* scale normalization → 1.0 */
+}
+
+/* blocked: dimmed arrows flash to #FF3344 at impact (JS removes .is-hit
+   after FLASH_PEAK_MS; the base stroke transition carries the decay) */
+.arrow.is-hit .line,
+.arrow.is-hit .head { stroke: #ff3344; transition: none; }
+
 .arrow:focus-visible {
   outline: none;
 }
 
 .arrow:focus-visible .line,
 .arrow:focus-visible .head { stroke: var(--accent-strong); }
-
-/* blocked feedback: horizontal shake + terracotta flash */
-.arrow.shake { animation: shake 0.26s var(--ease); }
-
-.arrow.shake .line,
-.arrow.shake .head { stroke: var(--blocked); }
-
-@keyframes shake {
-  0%, 100% { translate: 0 0; }
-  25% { translate: -4px 0; }
-  50% { translate: 4px 0; }
-  75% { translate: -2px 0; }
-}
 
 /* ---------- overlay ---------- */
 
@@ -249,6 +286,12 @@ h1 {
   justify-content: center;
   flex-wrap: wrap;
 }
+
+/* hint: discoverable but quiet — gentle accent ring + lift, pulsing */
+.arrow.is-hinted .line,
+.arrow.is-hinted .head { stroke: var(--accent-strong); opacity: 0.95; }
+
+.arrow.is-hinted { filter: drop-shadow(0 0 5px rgba(211, 169, 92, 0.35)); }
 
 /* ---------- controls ---------- */
 
@@ -308,4 +351,7 @@ h1 {
   .code, h1, .lede, .game { animation: none; }
   .heart, .btn, .arrow .line, .arrow .head, .overlay { transition: none; }
   .arrow.shake { animation: none; }
+  .heart.fracturing { animation: none; }
+  .arrow.is-anticipating .head { animation: none; }
+  .arrow { transform-box: view-box; }
 }
