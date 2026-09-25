@@ -1,0 +1,278 @@
+/* ============================================================
+   404 — arrow route puzzle
+   Same design system as the main site: dark editorial, warm sand.
+   Hand-written, no frameworks, no engine.
+   ============================================================ */
+
+:root {
+  --bg: #0b0a08;
+  --bg-lift: #12100d;
+  --text: #f4f2ee;
+  --text-2: #a39f96;
+  --text-3: #6f6b62;
+  --accent: #d3a95c;
+  --accent-strong: #e6c483;
+  --accent-dim: rgba(211, 169, 92, 0.13);
+  --hairline: rgba(244, 242, 238, 0.09);
+  --hairline-strong: rgba(244, 242, 238, 0.22);
+  --ok: #8fc97e;
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background:
+    radial-gradient(ellipse 60% 42% at 50% 0%, rgba(211, 169, 92, 0.07), transparent 70%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px var(--gutter, 20px) 28px;
+}
+
+::selection { background: var(--accent); color: #14100a; }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.shell { width: min(680px, 100%); }
+
+/* ---------- header ---------- */
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+h1 {
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  margin: 10px 0 12px;
+}
+
+.lede { color: var(--text-2); font-size: 16px; max-width: 52ch; }
+
+/* ---------- game panel ---------- */
+
+.game {
+  margin-top: 30px;
+  border: 1px solid var(--hairline);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(211, 169, 92, 0.045), transparent 55%), var(--bg-lift);
+  padding: clamp(18px, 4vw, 28px);
+}
+
+.hud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+}
+
+.hud b { color: var(--text); font-weight: 600; }
+
+.hud-status { flex: 1 1 200px; min-height: 1.4em; }
+
+.hud-status.win { color: var(--ok); }
+
+/* ---------- board ---------- */
+
+.board-wrap { position: relative; margin-top: 16px; }
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+}
+
+.tile {
+  aspect-ratio: 1;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  color: var(--text-3);
+  transition: border-color 0.2s var(--ease), background 0.2s var(--ease), color 0.2s var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tile:hover { border-color: var(--hairline-strong); color: var(--text-2); }
+
+.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.tile svg {
+  width: 62%;
+  height: 62%;
+  transition: transform 0.3s var(--ease), stroke 0.2s;
+}
+
+/* the two fixed endpoints */
+.tile.fixed { cursor: default; }
+
+.tile.fixed svg { transition: none; }
+
+.tile-start {
+  color: var(--text-2);
+  border-style: dashed;
+  border-color: var(--hairline-strong);
+  background: transparent;
+}
+
+.tile-goal {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+  background: var(--accent-dim);
+}
+
+/* solved state tints the whole route */
+.board.won .tile { pointer-events: none; }
+
+.tile.winning {
+  border-color: var(--accent-dim);
+  background: var(--accent-dim);
+  color: var(--accent-strong);
+}
+
+/* ---------- orb trail ---------- */
+
+.orb {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #f6dfae, var(--accent-strong) 55%, var(--accent));
+  box-shadow: 0 0 10px 2px rgba(211, 169, 92, 0.55), 0 0 26px 6px rgba(211, 169, 92, 0.22);
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.orb.live { opacity: 1; }
+
+/* path ghost left behind by the travelling orb */
+.trail-seg {
+  position: absolute;
+  background: linear-gradient(90deg, var(--accent-dim), rgba(211, 169, 92, 0.4));
+  height: 2px;
+  border-radius: 2px;
+  transform-origin: 0 50%;
+  pointer-events: none;
+  z-index: 1;
+  animation: trail-in 0.5s var(--ease) both;
+}
+
+@keyframes trail-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- controls ---------- */
+
+.controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 20px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 0.3s var(--ease), background 0.3s, border-color 0.3s, color 0.3s;
+}
+
+.btn-solid { background: var(--text); color: #14100a; }
+.btn-solid:hover { background: #fff; transform: translateY(-1px); }
+.btn-solid:disabled { opacity: 0.45; cursor: default; transform: none; }
+
+.btn-ghost { border-color: var(--hairline-strong); background: none; color: var(--text); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent-strong); transform: translateY(-1px); }
+
+.home-link {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--text-2);
+  transition: color 0.25s;
+}
+
+.home-link:hover { color: var(--accent-strong); }
+
+.tutorial {
+  margin-top: 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+}
+
+.tutorial a { color: var(--text-2); text-decoration: underline; }
+
+/* ---------- footer ---------- */
+
+.foot {
+  margin-top: 26px;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  color: var(--text-3);
+  font-size: 12.5px;
+}
+
+.foot-links a { color: var(--text-2); transition: color 0.25s; }
+.foot-links a:hover { color: var(--text); }
+
+/* hint pulse — marks the first wrong arrow on the route */
+.tile.hinting {
+  border-color: var(--accent);
+  animation: hint-pulse 0.8s var(--ease) 2;
+}
+
+@keyframes hint-pulse {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 0 4px var(--accent-dim); }
+}
+
+/* ---------- reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .tile svg, .btn, .home-link { transition: none; }
+  .orb { transition: none; }
+  .trail-seg { animation: none; }
+}
+
+@media (max-width: 520px) {
+  .board { gap: 4px; }
+  .tile { border-radius: 7px; }
+  .controls .btn { padding: 9px 16px; }
+  .home-link { margin-left: 0; flex-basis: 100%; }
+}

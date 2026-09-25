@@ -215,7 +215,11 @@ function safeLinks(arr, max) {
   if (!Array.isArray(arr)) return [];
   return arr
     .slice(0, max)
-    .map((l) => ({ label: safeText(l?.label, "").slice(0, 40), url: safeUrl(l?.url) }))
+    .map((l) => ({
+      label: safeText(l?.label, "").slice(0, 40),
+      // absolute http(s) or safe site-relative paths (e.g. "bhukosh.html")
+      url: safeUrl(l?.url) || safePath(l?.url),
+    }))
     .filter((l) => l.label && l.url);
 }
 

@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BhuKosh — case study · Farzan Sayeed Hashmi</title>
+  <meta name="description" content="How BhuKosh works: evidence-bound land-record digitization for Smart India Hackathon 2026 — evidence chain, validation rules, truth-assurance verdicts, and a hash-chained audit trail. Built and deployed by a second-year IT student.">
+  <meta name="theme-color" content="#0b0a08">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="canonical" href="https://portfolio-farzan4.vercel.app/bhukosh.html">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="case.css">
+  <script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#cs-top">Skip to content</a>
+
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="index.html">Farzan S. Hashmi<span>.</span></a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="index.html">Home</a>
+        <a href="index.html#projects">Projects</a>
+        <a href="index.html#contact">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ============ HERO ============ -->
+  <section class="cs-hero" id="cs-top">
+    <div class="container">
+      <p class="eyebrow">Case study · Smart India Hackathon 2026 · Flagship</p>
+      <h1>BhuKosh</h1>
+      <p class="cs-lede">Land records in India exist mostly as scans of handwritten registers in multiple Indian scripts. BhuKosh turns them into validated digital records where <em>every AI-extracted value stays bound to the exact pixels it was read from</em> — and every record carries a truth-assurance verdict computed from independently checkable signals, never the model's opinion.</p>
+      <div class="cs-hero-cta">
+        <a class="btn btn-solid" href="https://bhukosh.vercel.app" target="_blank" rel="noopener">Open the live app</a>
+        <a class="btn btn-ghost" href="https://bhukosh-api.vercel.app/docs" target="_blank" rel="noopener">API docs</a>
+        <a class="btn btn-ghost" href="https://github.com/Farzansayeed/BhuKosh" target="_blank" rel="noopener">Source</a>
+      </div>
+      <dl class="case-meta cs-meta">
+        <div><dt>Role</dt><dd>Design &amp; full-stack build</dd></div>
+        <div><dt>Team</dt><dd>Student team (SIH 2026)</dd></div>
+        <div><dt>Timeline</dt><dd>2026 — ongoing</dd></div>
+        <div><dt>Stack</dt><dd>Python · FastAPI · React · Postgres</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <main id="main">
+
+  <!-- ============ THE 60-SECOND DEMO ============ -->
+  <section class="section cs-section">
+    <div class="container cs-narrow">
+      <div class="section-head">
+        <span class="section-eyebrow">The 60-second demo</span>
+        <h2>Walk it, don't read it.</h2>
+      </div>
+      <ol class="demo-steps">
+        <li>
+          <span class="step-num">1</span>
+          <div>
+            <h3>Sign in as the checker</h3>
+            <p>Open <a class="inline-link" href="https://bhukosh.vercel.app" target="_blank" rel="noopener">bhukosh.vercel.app</a> and log in as <code>checker / checker-dev</code> — a reviewer role, not admin.</p>
+          </div>
+        </li>
+        <li>
+          <span class="step-num">2</span>
+          <div>
+            <h3>Open a pending record</h3>
+            <p>Pick any record waiting for review from the records list.</p>
+          </div>
+        </li>
+        <li>
+          <span class="step-num">3</span>
+          <div>
+            <h3>Click Evidence</h3>
+            <p>For any field: the cropped pixels it was read from, the engine run that produced it, and the human decisions behind it — one chain, fully replayable.</p>
+          </div>
+        </li>
+        <li>
+          <span class="step-num">4</span>
+          <div>
+            <h3>Click Check assurance</h3>
+            <p>A SUFFICIENT / PARTIAL / INSUFFICIENT verdict computed from rule outcomes, cross-record corroboration, document integrity, and human authority — with per-check detail lines.</p>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ WHY DIFFERENT ============ -->
+  <section class="section cs-section">
+    <div class="container cs-narrow">
+      <div class="section-head">
+        <span class="section-eyebrow">01 — The problem with "the AI read it"</span>
+        <h2>Reading is easy. Proving is the product.</h2>
+      </div>
+    </div>
+    <div class="container">
+      <div class="pillar-grid">
+        <div class="pillar">
+          <h3>01 · Evidence-bound AI</h3>
+          <p>An extraction run's input hash is the SHA-256 of the exact bytes sent to the model. Replay any value: candidate → run (engine, prompt version, input hash) → document/page (hashes, sequence) → for vision runs, the cropped pixels the value was read from.</p>
+        </div>
+        <div class="pillar">
+          <h3>02 · Validation before humans</h3>
+          <p>Five deterministic, versioned business rules run on every record; only anomalies — with plain-language explanations and linked evidence — reach a reviewer. Uncertain fields (confidence &lt; 0.6 or unreadable) route to review automatically; they never enter the database silently.</p>
+        </div>
+        <div class="pillar">
+          <h3>03 · Two scores, honestly separated</h3>
+          <p><em>Reading confidence</em> answers "did we read the pixels right?" <em>Truth assurance</em> answers the harder one — "why believe it's correct?" — as a verdict from independently checkable signals. A VERIFIED record can still fail honestly when evidence contradicts it.</p>
+        </div>
+        <div class="pillar">
+          <h3>04 · Tamper-evident provenance</h3>
+          <p>The audit trail is a hash chain enforced by database triggers — rows cannot be edited or deleted, and <code>/audit/verify</code> re-checks the whole chain. Exports are immutable snapshots with an evidence manifest.</p>
+        </div>
+        <div class="pillar">
+          <h3>05 · A real workflow, not a form</h3>
+          <p>Claim locks (HTTP 423), optimistic versioning (HTTP 409), mandatory reasons for rejections, corrections, and reopens — one audited write path for every human decision.</p>
+        </div>
+        <div class="pillar">
+          <h3>06 · It learns from its reviewers</h3>
+          <p>Human corrections are injected as few-shot guidance into future extraction prompts — and the loop is inspectable at <code>GET /learning/hints</code>: the exact lessons the engine carries, with the decision trail behind each one.</p>
+        </div>
+        <div class="pillar">
+          <h3>07 · Multilingual end to end</h3>
+          <p>Reads any Indic script (verified live on Devanagari khatauni registers and Gujarati VF-6 forms), interface in EN / हिन्दी / ગુજરાતી, extracted values renderable into all three — original script always preserved as evidence.</p>
+        </div>
+        <div class="pillar">
+          <h3>08 · Runs anywhere</h3>
+          <p>Identical code against a local offline Postgres (courts and tahsils with no internet) or a cloud deployment — selected by one environment variable.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PIPELINE ============ -->
+  <section class="section cs-section">
+    <div class="container cs-narrow">
+      <div class="section-head">
+        <span class="section-eyebrow">02 — System design</span>
+        <h2>One scan's journey.</h2>
+      </div>
+      <ol class="pipeline">
+        <li><span>SOURCE</span> Scans enter through a signed intake manifest — register ref, centre, device, per-page SHA-256 hash-of-hashes verification.</li>
+        <li><span>EVIDENCE</span> Documents are content-addressed by SHA-256; byte-identical re-uploads are rejected (HTTP 409). Pages get sequence + hashes.</li>
+        <li><span>LAYOUT</span> The vision engine reads the scan: per field — value, bounding box, confidence 0–1. Each box is cut into a content-addressed evidence crop.</li>
+        <li><span>EXTRACTION</span> 12 land-record fields, schema-locked JSON. Every run logs engine, model, prompt version, input hash.</li>
+        <li><span>REASONING</span> Five versioned rules validate: pattern sanity, area format, missing identity, unreadable fields, cross-record area jump &gt; 25%.</li>
+        <li><span>VERIFICATION</span> A strict state machine: claim locks, optimistic versioning, every human decision versioned, reason-tracked, hash-chained.</li>
+        <li><span>PROVENANCE</span> Every decision emits an audit event in the same transaction; the chain is append-only by trigger, verifiable on demand.</li>
+        <li><span>TRUSTED OUTPUT</span> Immutable JSON/CSV exports with evidence manifests; OpenAPI for downstream LRMS/DILRMP consumption.</li>
+      </ol>
+      <p class="pipeline-note">The state machine: INGESTED → EXTRACTED → VALIDATED → REVIEW_REQUIRED → VERIFIED → OFFICER_CERTIFIED, plus REJECTED / QUARANTINED exits and REOPEN. Current values are a projection of the append-only history — never an independent edit.</p>
+    </div>
+  </section>
+
+  <!-- ============ ENGINEERING DECISIONS ============ -->
+  <section class="section cs-section">
+    <div class="container cs-narrow">
+      <div class="section-head">
+        <span class="section-eyebrow">03 — Engineering decisions</span>
+        <h2>Choices worth defending.</h2>
+      </div>
+
+      <div class="decision">
+        <h3>Multi-engine by default</h3>
+        <p>Three engines ship (Gemini primary, OpenRouter MiniMax, Groq text path). The lineup wasn't taste — it was a bake-off: 11 free vision models scanned, top candidates tested against a real Gujarati VF-6 inheritance-form scan. MiniMax-M3 read it correctly in ~4&nbsp;s; Gemma free models were quota-saturated; Groq's former vision model was retired upstream. A 429 storm on one provider never blocks extraction — switch engines and continue.</p>
+      </div>
+
+      <div class="decision">
+        <h3>Two scores, not one</h3>
+        <p>Most pipelines collapse "the OCR was confident" into "the record is correct." BhuKosh separates them deliberately: confidence is per-field, and document-level as the <em>worst field</em> — a record is as trustworthy as its weakest reading. Assurance is a composite verdict over rule outcomes, cross-record corroboration, document integrity, and human authority.</p>
+      </div>
+
+      <div class="decision">
+        <h3>Audit chain in Postgres triggers</h3>
+        <p>The append-only guarantee lives in the database, not app code: triggers serialize appends on a Postgres advisory lock, so concurrent actions can never fork the chain — even a buggy app can't rewrite history. Every decision emits its audit event in the same transaction as the change.</p>
+      </div>
+
+      <div class="decision">
+        <h3>Duplicate &amp; forged-scan detection</h3>
+        <p>Every page carries a 64-bit perceptual hash (dHash); near-matches (≤ 6 bits different) catch re-scans that differ at the byte level. A Gemini forensic pass reports tamper signals and per-page verdicts — CLEAN / SUSPECT / LIKELY_FORGED — explicitly labeled decision support only; a human decides. Stamps, seals, and signatures are learned from VERIFIED+ records only — the AI learns what genuine documents look like from the corpus humans already certified.</p>
+      </div>
+
+      <div class="decision">
+        <h3>Search in Postgres, not a search server</h3>
+        <p>One term matches record ID prefix, village, khasra, and every extracted field value — executed entirely in Postgres on pg_trgm GIN indexes with similarity ranking. Spontaneous, per-keystroke fast, no extra infrastructure, graceful fallback when the extension is unavailable.</p>
+      </div>
+
+      <div class="decision">
+        <h3>Honest architecture</h3>
+        <p>The external LRMS/DILRMP registry cross-check renders as an explicit "adapter slot," never a faked lookup. Forensic verdicts are labeled decision support only. Records without confidence scores show honestly empty. The README carries an honest caveats section — public demo credentials (on purpose, for judges), shared free-tier quota, cold starts, prototype-level learning loop. A tool about trustworthy claims should model trustworthy claims.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ARCHITECTURE ============ -->
+  <section class="section cs-section">
+    <div class="container cs-narrow">
+      <div class="section-head">
+        <span class="section-eyebrow">04 — Architecture</span>
+        <h2>Two Vercel projects, one Postgres, zero paid services.</h2>
+      </div>
+    </div>
+    <div class="container">
+      <pre class="arch"><code>Browser (React/Vite SPA, same-origin /api)
+   │
+   ├─ Vercel frontend (bhukosh.vercel.app) ─── rewrites /api/* ──┐
+   ├─ Vercel serverless (bhukosh-api.vercel.app) ◄──────────────┘
+   │     └─ FastAPI app (backend/)
+   │
+   ├─ Supabase Postgres (transaction pooler, TLS)   ← all 19 tables
+   ├─ Supabase Storage (private bucket)             ← scan bytes + crops
+   └─ AI engines (server-held keys)                 ← vision + text
+         ├─ Google Gemini (gemini-3.7-flash) — primary
+         ├─ OpenRouter (minimax-m3:free) — vision + text
+         └─ Groq (qwen text) — fastest text path</code></pre>
+    </div>
+    <div class="container">
+      <div class="stat-strip">
+        <div class="stat"><b>19</b><span>tables across 11 migrations</span></div>
+        <div class="stat"><b>3</b><span>AI engines, one contract</span></div>
+        <div class="stat"><b>12</b><span>fields per page, schema-locked</span></div>
+        <div class="stat"><b>5</b><span>versioned validation rules</span></div>
+        <div class="stat"><b>3</b><span>UI languages</span></div>
+        <div class="stat"><b>60s</b><span>demo path, live today</span></div>
+        <div class="stat"><b>0</b><span>paid services</span></div>
+      </div>
+    </div>
+    <div class="container cs-narrow">
+      <p class="cs-note">Deployment: push to <code>master</code> → both Vercel projects build and deploy automatically. Secrets live in Vercel's encrypted store; nothing sensitive in the repo. Tests run against a stubbed engine — CI-safe, no quota burned.</p>
+    </div>
+  </section>
+
+  <!-- ============ REFLECTION ============ -->
+  <section class="section cs-section">
+    <div class="container cs-narrow">
+      <div class="section-head">
+        <span class="section-eyebrow">05 — Reflection</span>
+        <h2>What I'd do differently.</h2>
+      </div>
+      <ul class="reflect">
+        <li><strong>Calibrate the confidence.</strong> The engine self-reports a 0–1 confidence per field; first on the roadmap is validating that self-report against observed correction rates per band — trust the score only after it earns it.</li>
+        <li><strong>Benchmark, not just demo.</strong> Accuracy claims are demo-verified, not benchmarked. An evaluation harness with labeled benchmark sets would make every future change measurable.</li>
+        <li><strong>Real adapters, when there's something to adapt to.</strong> LRMS/DILRMP integration is deliberately an honest adapter slot today; direct integration needs a counterpart system to test against, and faking one would betray the project's own thesis.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ============ NEXT ============ -->
+  <section class="section cs-section cs-next">
+    <div class="container cs-narrow">
+      <div class="section-head">
+        <span class="section-eyebrow">Next</span>
+        <h2>Also built: WikiExplore.</h2>
+        <p class="cs-next-sub">A live reading portal for all 66 million Wikipedia articles — one Wikimedia feed call, ~4,240 lines of hand-written vanilla JS, no framework.</p>
+      </div>
+      <div class="cs-hero-cta">
+        <a class="btn btn-solid" href="index.html#project-wikiexplore">View WikiExplore</a>
+        <a class="btn btn-ghost" href="index.html">Back to the site</a>
+      </div>
+    </div>
+  </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>© <span>2026</span> Farzan Sayeed Hashmi</p>
+      <div class="footer-links">
+        <a class="footer-link" href="resume.pdf" download>Résumé</a>
+        <a class="footer-link" href="https://github.com/Farzansayeed" target="_blank" rel="noopener">GitHub</a>
+        <a class="footer-link" href="https://www.linkedin.com/in/farzan-sayeed-hashmi-b9876539b/" target="_blank" rel="noopener">LinkedIn</a>
+        <a class="footer-link" href="mailto:farzansayeedhashmi@gmail.com">Email</a>
+      </div>
+      <a class="arrow-link" href="#cs-top">Back to top</a>
+    </div>
+  </footer>
+</body>
+</html>

@@ -47,6 +47,7 @@
       "outcome": "The system is live with a working app and documented API. The 60-second demo path — sign in as checker, open a pending record, click Evidence, check assurance — runs on the deployed service today.",
       "tech": ["Python", "JavaScript", "PL/pgSQL", "AI / OCR", "OpenAPI"],
       "links": [
+        { "label": "Case study", "url": "bhukosh.html" },
         { "label": "Live app", "url": "https://bhukosh.vercel.app" },
         { "label": "API docs", "url": "https://bhukosh-api.vercel.app/docs" },
         { "label": "Source", "url": "https://github.com/Farzansayeed/BhuKosh" }

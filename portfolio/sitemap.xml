@@ -4,4 +4,8 @@
     <loc>https://portfolio-farzan4.vercel.app/</loc>
     <changefreq>monthly</changefreq>
   </url>
+  <url>
+    <loc>https://portfolio-farzan4.vercel.app/bhukosh.html</loc>
+    <changefreq>monthly</changefreq>
+  </url>
 </urlset>

@@ -1,0 +1,293 @@
+/* ============================================================
+   Case study pages (bhukosh.html) — extends the site system
+   ============================================================ */
+
+.cs-hero {
+  padding: 150px 0 0;
+  position: relative;
+}
+
+.cs-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(211, 169, 92, 0.08), transparent 70%);
+}
+
+.cs-hero .container { position: relative; }
+
+.cs-hero h1 {
+  font-size: clamp(2.8rem, 8vw, 5.5rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  margin: 18px 0 22px;
+}
+
+.cs-lede {
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  color: var(--text-2);
+  max-width: 62ch;
+}
+
+.cs-lede em { color: var(--text); font-style: italic; }
+
+.cs-hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 30px;
+}
+
+.cs-meta { margin-top: 34px; }
+
+/* ---------- demo steps ---------- */
+
+.demo-steps {
+  counter-reset: step;
+  border-top: 1px solid var(--hairline);
+}
+
+.demo-steps li {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 18px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.step-num {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  background: var(--accent-dim);
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+}
+
+.demo-steps h3 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin-bottom: 5px;
+}
+
+.demo-steps p {
+  color: var(--text-2);
+  font-size: 15.5px;
+  max-width: 66ch;
+}
+
+/* ---------- pillars ---------- */
+
+.pillar-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--hairline);
+  border: 1px solid var(--hairline);
+}
+
+.pillar {
+  background: var(--bg);
+  padding: 30px;
+}
+
+.pillar h3 {
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 9px;
+}
+
+.pillar h3::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 10px;
+  vertical-align: 2px;
+}
+
+.pillar p {
+  color: var(--text-2);
+  font-size: 14.5px;
+}
+
+/* ---------- pipeline ---------- */
+
+.pipeline {
+  border-top: 1px solid var(--hairline);
+}
+
+.pipeline li {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 20px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.pipeline li span {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+  padding-top: 4px;
+}
+
+.pipeline li { color: var(--text-2); font-size: 15px; }
+
+.pipeline-note {
+  margin-top: 20px;
+  font-size: 14px;
+  color: var(--text-3);
+  max-width: 70ch;
+}
+
+/* ---------- decisions ---------- */
+
+.decision {
+  border-top: 1px solid var(--hairline);
+  padding: 26px 0;
+}
+
+.decision h3 {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin-bottom: 8px;
+}
+
+.decision h3::before {
+  content: "→";
+  color: var(--accent);
+  margin-right: 10px;
+}
+
+.decision p {
+  color: var(--text-2);
+  font-size: 15.5px;
+  max-width: 70ch;
+}
+
+/* ---------- architecture + stats ---------- */
+
+.arch {
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--bg-lift);
+  padding: 22px 24px;
+  overflow-x: auto;
+}
+
+.arch code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-2);
+  white-space: pre;
+}
+
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--hairline);
+  border: 1px solid var(--hairline);
+  margin-top: 28px;
+}
+
+.stat {
+  background: var(--bg);
+  padding: 20px 14px;
+  text-align: center;
+}
+
+.stat b {
+  display: block;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--accent-strong);
+}
+
+.stat span {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-top: 6px;
+}
+
+.cs-note {
+  margin-top: 24px;
+  font-size: 14.5px;
+  color: var(--text-3);
+}
+
+.cs-note code,
+.decision code,
+.pillar code,
+.demo-steps code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  color: var(--text-2);
+  background: var(--accent-dim);
+  border: 1px solid var(--hairline);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+
+/* ---------- reflection ---------- */
+
+.reflect { border-top: 1px solid var(--hairline); }
+
+.reflect li {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--text-2);
+  font-size: 15.5px;
+  max-width: 70ch;
+}
+
+.reflect strong { color: var(--text); font-weight: 600; }
+
+/* ---------- next-project block ---------- */
+
+.cs-next .section-head {
+  margin-bottom: 24px;
+}
+
+.cs-next-sub {
+  color: var(--text-2);
+  font-size: 15.5px;
+  max-width: 56ch;
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 900px) {
+  .pillar-grid { grid-template-columns: 1fr; }
+  .stat-strip { grid-template-columns: repeat(4, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .cs-hero { padding-top: 120px; }
+  .pipeline li { grid-template-columns: 1fr; gap: 4px; }
+  .stat-strip { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .demo-steps li { grid-template-columns: 34px 1fr; gap: 14px; }
+}
