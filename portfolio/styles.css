@@ -795,6 +795,8 @@ html.js .reveal.is-visible {
   #hero-orbs { animation: none; opacity: 1; }
   .scroll-cue span { animation: none; }
   .btn:hover, .arrow-link:hover::after { transform: none; }
+  .case-shot img { transition: none; }
+  .case-shot:hover img { transform: none; }
 }
 
 /* ============================================================
@@ -865,7 +867,15 @@ section[id] { scroll-margin-top: 96px; }
   border-radius: 12px;
   overflow: hidden;
   background: var(--bg-lift);
+  transition: border-color 0.35s var(--ease);
 }
+
+.case-shot img {
+  transition: transform 0.5s var(--ease);
+}
+
+.case-shot:hover { border-color: var(--accent-dim); }
+.case-shot:hover img { transform: scale(1.015); }
 
 .case-shot img {
   width: 100%;
