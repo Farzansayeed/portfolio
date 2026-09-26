@@ -71,7 +71,14 @@
   }
 
   // ----- Scroll reveals -----
+  // Above-fold elements must never be reveal-gated: they ARE the LCP
+  // element. Everything at load-time below the fold observes as normal.
   const reveals = [...document.querySelectorAll(".reveal")];
+  reveals.forEach((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.top < window.innerHeight * 0.7 && r.bottom > 0) el.classList.add("is-visible");
+  });
+  const pendingReveals = reveals.filter((el) => !el.classList.contains("is-visible"));
   if ("IntersectionObserver" in window) {
     const io = new IntersectionObserver(
       (entries) => {
@@ -84,7 +91,7 @@
       },
       { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
     );
-    reveals.forEach((el) => io.observe(el));
+    pendingReveals.forEach((el) => io.observe(el));
   } else {
     reveals.forEach((el) => el.classList.add("is-visible"));
   }

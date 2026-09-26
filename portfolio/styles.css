@@ -10,7 +10,7 @@
   --bg-lift: #12100d;
   --text: #f4f2ee;
   --text-2: #a39f96;
-  --text-3: #6f6b62;
+  --text-3: #8a8578;            /* 5.3:1 on --bg — passes AA at small sizes */
   --accent: #d3a95c;            /* warm sand */
   --accent-strong: #e6c483;
   --accent-dim: rgba(211, 169, 92, 0.13);

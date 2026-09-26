@@ -339,6 +339,16 @@
   <script src="content.client.js" defer></script>
   <script type="module" src="orb-field.js"></script>
   <script type="module" src="three-hero.js"></script>
+  <script>
+    // the fixed nav's active link is aria-current so SR users get the same
+    // signal sighted users get from the underline (main.js toggles .active)
+    new MutationObserver(function () {
+      document.querySelectorAll(".nav-links a").forEach(function (a) {
+        if (a.classList.contains("active")) a.setAttribute("aria-current", "true");
+        else a.removeAttribute("aria-current");
+      });
+    }).observe(document.querySelector(".nav-links"), { attributes: true, subtree: true, attributeFilter: ["class"] });
+  </script>
   <!-- Editable-content templates (used only by content.client.js when
        centrally-saved content exists; invisible and inert otherwise) -->
   <div hidden>
