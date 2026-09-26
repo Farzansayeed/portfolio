@@ -3,9 +3,16 @@
   <url>
     <loc>https://portfolio-farzan4.vercel.app/</loc>
     <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
   </url>
   <url>
     <loc>https://portfolio-farzan4.vercel.app/bhukosh.html</loc>
     <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://portfolio-farzan4.vercel.app/wikiexplore.html</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
 </urlset>

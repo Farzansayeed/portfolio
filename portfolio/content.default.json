@@ -88,8 +88,8 @@
       "demoNote": "",
       "screenshot": {
         "src": "shots/wikiexplore.png",
-        "alt": "WikiExplore screenshot placeholder — dark editorial reading layout with a featured-article panel and a thin accent rule (replace with a real capture of the live site).",
-        "caption": "Placeholder — replace with a real capture of today's featured article."
+        "alt": "Live capture of WikiExplore — the homepage with today's featured article, top-read and on-this-day stats, all served by Wikimedia's public APIs.",
+        "caption": "Live capture — the homepage the day this was taken, everything fetched live from Wikimedia."
       },
       "visual": "wiki",
       "visualCaption": ""
