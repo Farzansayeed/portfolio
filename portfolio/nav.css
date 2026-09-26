@@ -1,0 +1,416 @@
+/* ============================================================
+   Spatial Command Navigation — nav.css
+   Extends the site system: dark editorial, warm sand, hairlines.
+   80/20 motion: state changes 250–450ms, micro 150–250ms.
+   ============================================================ */
+
+/* ---------- desktop rail (≥1100px) ---------- */
+
+.navrail {
+  position: fixed;
+  right: 26px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 22px;
+}
+
+.navrail-kbd {
+  background: none;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+
+.navrail-kbd:hover { color: var(--accent); border-color: var(--accent-dim); }
+
+.navrail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.navrail-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 6px 0;
+  color: var(--text-3);
+  text-decoration: none;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.navrail-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-3);
+  opacity: 0.55;
+  transition: transform 0.3s var(--ease), background 0.3s var(--ease), opacity 0.3s var(--ease);
+  order: 2; /* dot sits at the right edge, label grows leftward */
+}
+
+.navrail-label {
+  opacity: 0;
+  transform: translateX(6px);
+  transition: opacity 0.3s var(--ease), transform 0.3s var(--ease), color 0.3s var(--ease);
+  white-space: nowrap;
+}
+
+/* idle: dot only; hover/focus: label whispers in; active: dominant */
+.navrail-item:hover .navrail-label,
+.navrail-item:focus-visible .navrail-label { opacity: 1; transform: none; }
+
+.navrail-item.is-active { color: var(--text); }
+.navrail-item.is-active .navrail-label { opacity: 1; transform: none; color: var(--text); }
+.navrail-item.is-active .navrail-dot {
+  background: var(--accent);
+  opacity: 1;
+  transform: scale(1.5);
+  box-shadow: 0 0 0 4px var(--accent-dim);
+}
+
+/* condensed while scrolling down; re-expands on scroll-up or interaction */
+.navrail.is-condensed .navrail-label {
+  opacity: 0;
+  transform: translateX(6px);
+}
+.navrail.is-condensed .navrail-item.is-active .navrail-label {
+  opacity: 1;
+  transform: none;
+}
+.navrail.no-anim *,
+.navrail.no-anim { transition: none !important; }
+
+/* ---------- mobile bar (<760px) ---------- */
+
+.mbar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  z-index: 55;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  background: rgba(18, 16, 13, 0.86);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 8px 10px 8px 16px;
+  transition: transform 0.4s var(--ease), opacity 0.4s var(--ease);
+}
+
+.mbar.is-hidden {
+  transform: translateX(-50%) translateY(96px);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mbar-sections {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+
+.mbar-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+  transition: transform 0.25s var(--ease);
+}
+
+.mbar-sections:active .mbar-dot { transform: scale(0.8); }
+
+.mbar-kbd {
+  background: rgba(244, 242, 238, 0.06);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+/* both surfaces render; the breakpoint picks the instrument */
+.mbar { display: none; }
+
+@media (max-width: 759px) {
+  .mbar { display: inline-flex; }
+  .navrail { display: none; }
+}
+
+@media (min-width: 760px) and (max-width: 1099px) {
+  .navrail { display: none; }
+}
+
+/* ---------- mobile sheet ---------- */
+
+.sheet { position: fixed; inset: 0; z-index: 70; }
+
+.sheet[hidden] { display: none; }
+
+.sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 10, 8, 0.6);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.3s var(--ease);
+}
+
+.sheet:not([hidden]) .sheet-backdrop { opacity: 1; }
+
+.sheet-panel {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg-lift);
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  padding: 10px;
+  transform: translateY(14px);
+  opacity: 0;
+  transition: transform 0.35s var(--ease), opacity 0.35s var(--ease);
+}
+
+.sheet:not([hidden]) .sheet-panel { transform: none; opacity: 1; }
+
+.sheet-list { list-style: none; margin: 0; padding: 0; }
+
+.sheet-list a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 15px;
+  border-radius: 12px;
+}
+
+.sheet-list a:hover, .sheet-list a:focus-visible { background: rgba(244, 242, 238, 0.05); }
+
+.sheet-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+  transition: background 0.2s;
+}
+
+.sheet-list a:hover .sheet-dot { background: var(--accent); }
+
+.sheet-foot {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+  letter-spacing: 0.06em;
+  padding: 10px 14px 6px;
+  border-top: 1px solid var(--hairline);
+  margin-top: 6px;
+}
+
+.sheet-foot kbd, .palette-foot kbd, .dotsurface-kbd kbd {
+  font-family: inherit;
+  background: rgba(244, 242, 238, 0.07);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ---------- command palette ---------- */
+
+.palette { position: fixed; inset: 0; z-index: 80; }
+
+.palette[hidden] { display: none; }
+
+.palette-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(11, 10, 8, 0.66);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transition: opacity 0.25s var(--ease);
+}
+
+.palette:not([hidden]) .palette-backdrop { opacity: 1; }
+
+.palette-panel {
+  position: absolute;
+  left: 50%;
+  top: clamp(12vh, 18vh, 22vh);
+  transform: translateX(-50%) translateY(-8px) scale(0.985);
+  width: min(560px, calc(100vw - 32px));
+  background: var(--bg-lift);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.25s var(--ease), transform 0.25s var(--ease);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+}
+
+.palette:not([hidden]) .palette-panel { opacity: 1; transform: translateX(-50%); }
+
+.palette-input {
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  padding: 16px 18px;
+}
+
+.palette-input:focus { outline: none; }
+.palette-input::placeholder { color: var(--text-3); }
+
+.palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  max-height: min(46vh, 380px);
+  overflow-y: auto;
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.palette-item em {
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  flex: none;
+}
+
+.palette-item:hover,
+.palette-item.is-selected { background: var(--accent-dim); }
+
+.palette-item.is-selected span { color: var(--accent-strong); }
+
+.palette-empty {
+  padding: 22px 12px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.palette-foot {
+  display: flex;
+  gap: 16px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--hairline);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+}
+
+/* ---------- dot surface ---------- */
+
+.dotsurface {
+  position: fixed;
+  z-index: 65;
+  min-width: 172px;
+  background: var(--bg-lift);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+
+.dotsurface[hidden] { display: none; }
+
+.dotsurface a {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13.5px;
+}
+
+.dotsurface a:hover, .dotsurface a:focus-visible { background: rgba(244, 242, 238, 0.05); color: var(--accent-strong); }
+
+.dotsurface-kbd {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  padding: 8px 12px 4px;
+  border-top: 1px solid var(--hairline);
+  margin-top: 4px;
+}
+
+/* the brand dot gets a touch more presence as the control point */
+.brand-dotsurface .brand span {
+  cursor: pointer;
+  transition: text-shadow 0.25s var(--ease);
+}
+
+.brand-dotsurface:hover .brand span { text-shadow: 0 0 12px var(--accent-dim); }
+
+/* ---------- case-study palette chip ---------- */
+
+.cs-palette-chip {
+  position: fixed;
+  right: 26px;
+  bottom: 26px;
+  z-index: 45;
+}
+
+@media (max-width: 759px) {
+  .cs-palette-chip { display: none; } /* the mbar owns ⌘K on mobile */
+}
+
+/* ---------- reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .mbar, .sheet-panel, .palette-panel, .palette-backdrop, .sheet-backdrop,
+  .navrail-dot, .navrail-label, .mbar-dot { transition: none !important; }
+  .mbar.is-hidden { transform: translateX(-50%); }
+}

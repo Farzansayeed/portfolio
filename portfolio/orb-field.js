@@ -82,6 +82,10 @@ import {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
     ctx.globalCompositeOperation = "lighter";
+    // nav.js sets data-section-mod (±15% around 1) as the section changes —
+    // the atmosphere breathes with the page without ever driving navigation
+    var mod = parseFloat(canvas.dataset.sectionMod || "1") || 1;
+    tNow *= mod;
     for (var i = 0; i < layout.length; i++) {
       var o = layout[i];
       var s = o.size;
