@@ -17,9 +17,11 @@
   "use strict";
 
   var state = null;      // the working content object (shared across pages)
+  var savedSnapshot = null; // last-saved copy, for the save-time diff
   var dirty = false;
   var bound = false;     // [data-path] inputs bound once
   var currentRoute = "overview";
+  var STORE_LIMIT = 8000; // Edge Config free-tier cap, enforced server-side
 
   // routes in sidebar order — used for nav highlighting, undo scoping, stats
   var PAGES = ["overview", "intro", "projects", "skills", "achievements", "contact", "seo"];
@@ -117,6 +119,123 @@
     document.title = baseTitle + (v ? " — unsaved" : "");
     setStatus(v ? "Unsaved changes" : "All changes saved", v ? "err" : "ok");
     if (v) draftSave();
+  }
+
+  // ---------- save diff + size meter ----------
+
+  function valueIn(obj, path) {
+    var m;
+    if ((m = path.match(/^education\.l(\d+)$/))) return (obj.education.lines || [])[+m[1]] || "";
+    if ((m = path.match(/^about\.p(\d+)$/))) return (obj.about.paragraphs || [])[+m[1]] || "";
+    return getIn(obj, path);
+  }
+
+  function s(v) { return v == null ? "" : String(v); }
+
+  var SECTION_LABEL = {
+    hero: "Hero", about: "About", education: "Education", currently: "Currently",
+    privateWork: "Private work", projects: "Projects", skills: "Skills",
+    achievements: "Achievements", contact: "Contact", seo: "SEO & social",
+  };
+
+  // Which top-level sections differ between the snapshot and now, with a
+  // one-line detail each. Pragmatic: field-level for simple fields,
+  // card-level (count / order / content) for lists.
+  function diffSummary() {
+    if (!savedSnapshot || !state) return [];
+    var changed = {};
+
+    editorView.querySelectorAll("[data-path]").forEach(function (input) {
+      var path = input.getAttribute("data-path");
+      var top = path.split(".")[0];
+      if (s(valueIn(savedSnapshot, path)) !== s(valueIn(state, path))) {
+        changed[top] = changed[top] || [];
+        if (changed[top].length < 3) changed[top].push(path.split(".").slice(1).join("."));
+        else if (changed[top].length === 3) changed[top].push("…");
+      }
+    });
+
+    [
+      ["projects", state.projects, savedSnapshot.projects, "cards"],
+      ["skills", state.skills.groups, savedSnapshot.skills.groups, "groups"],
+      ["achievements", state.achievements, savedSnapshot.achievements, "items"],
+      ["contact", state.contact.links, savedSnapshot.contact.links, "links"],
+    ].forEach(function (entry) {
+      var top = entry[0], cur = entry[1] || [], sav = entry[2] || [], noun = entry[3];
+      var sc = JSON.stringify(sav), cc = JSON.stringify(cur);
+      if (sc === cc) return;
+      changed[top] = changed[top] || [];
+      var detail;
+      if (sav.length !== cur.length) {
+        detail = sav.length + " → " + cur.length + " " + noun;
+      } else {
+        var sameSet = sav.length === cur.length && cur.every(function (it) {
+          return sav.some(function (s) { return JSON.stringify(s) === JSON.stringify(it); });
+        });
+        detail = sameSet ? "reordered" : "edited";
+      }
+      if (changed[top].indexOf(detail) === -1) changed[top].push(detail);
+    });
+
+    return Object.keys(changed).map(function (top) {
+      return { section: SECTION_LABEL[top] || top, detail: changed[top].join(", ") };
+    });
+  }
+
+  function payloadSize() { return state ? JSON.stringify(state).length : 0; }
+
+  function updateSizeMeter() {
+    var meter = el("size-meter");
+    if (!meter || !state) return;
+    var kb = (payloadSize() / 1024).toFixed(1);
+    meter.textContent = kb + " KB of 8 KB store";
+    meter.hidden = false;
+    meter.classList.toggle("warn", payloadSize() > STORE_LIMIT * 0.85);
+  }
+
+  // ---------- save confirmation modal ----------
+
+  var lastFocused = null;
+
+  function requestSave() {
+    if (!state || saving) return;
+    if (!dirty) { toast("Nothing to save — you're in sync", ""); return; }
+    var size = payloadSize();
+    if (size > STORE_LIMIT) {
+      toast("Content is " + (size / 1024).toFixed(1) + " KB — over the 8 KB store limit. Trim text.", "err");
+      return;
+    }
+    openSaveModal();
+  }
+
+  function openSaveModal() {
+    var modal = el("save-modal");
+    if (!modal) { doSave(); return; } // no modal in DOM — save directly
+    var list = el("save-diff");
+    var changes = diffSummary();
+    list.innerHTML = "";
+    changes.forEach(function (c) {
+      var li = document.createElement("li");
+      var s = document.createElement("span"); s.textContent = c.section;
+      var d = document.createElement("em"); d.textContent = c.detail;
+      li.appendChild(s); li.appendChild(d);
+      list.appendChild(li);
+    });
+    var size = payloadSize();
+    var sub = el("save-count");
+    sub.textContent = changes.length + (changes.length === 1 ? " section" : " sections") +
+      " changed · " + (size / 1024).toFixed(1) + " KB of 8 KB store";
+    sub.classList.toggle("warn", size > STORE_LIMIT * 0.85);
+    lastFocused = document.activeElement;
+    modal.hidden = false;
+    el("save-confirm").focus();
+  }
+
+  function closeSaveModal() {
+    var modal = el("save-modal");
+    if (!modal) return;
+    modal.hidden = true;
+    if (lastFocused && lastFocused.focus) lastFocused.focus();
   }
 
   // ---------- API ----------
@@ -576,10 +695,12 @@
         if (r.status === 401) { showLogin(); return; }
         if (r.data && r.data.ok) {
           state = r.data.content;
+          savedSnapshot = JSON.parse(JSON.stringify(state));
           refillSimple();
           renderLists();
           draftClear();
           setDirty(false);
+          updateSizeMeter();
           setStatus("Saved ✓ — live for all visitors" +
             (r.data.savedAt ? " at " + new Date(r.data.savedAt).toLocaleTimeString() : ""), "ok");
           toast("Saved — live on the site", "ok");
@@ -605,9 +726,11 @@
     draftClear();
     loadContent().then(function (c) {
       state = c;
+      savedSnapshot = JSON.parse(JSON.stringify(c));
       refillSimple();
       renderLists();
       setDirty(false);
+      updateSizeMeter();
       setStatus("Reset to saved content.", "ok");
       toast("Reset to saved content", "ok");
     });
@@ -627,8 +750,20 @@
     if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
       if (!state) return;
       e.preventDefault();
-      doSave();
+      requestSave();
     }
+  });
+
+  // save modal: confirm / cancel / Esc / backdrop click
+  document.addEventListener("click", function (e) {
+    if (e.target.id === "save-confirm") { closeSaveModal(); doSave(); }
+    else if (e.target.id === "save-cancel") closeSaveModal();
+    else if (e.target.id === "save-modal") closeSaveModal();
+  });
+  document.addEventListener("keydown", function (e) {
+    var modal = el("save-modal");
+    if (!modal || modal.hidden) return;
+    if (e.key === "Escape") { e.preventDefault(); closeSaveModal(); }
   });
 
   document.addEventListener("keydown", function (e) {
@@ -643,11 +778,13 @@
     loadContent()
       .then(function (c) {
         state = c;
+        savedSnapshot = JSON.parse(JSON.stringify(c));
         bindSimple();   // once — listeners are never re-added
         refillSimple(); // fill from state on every load/save/discard
         renderLists();
         wireAddButtons();
         setDirty(false);
+        updateSizeMeter();
         showEditor();
         draftOffer();
         setStatus("Loaded saved content.", "ok");
@@ -669,7 +806,7 @@
 
   el("login-form").addEventListener("submit", doLogin);
   el("logout").addEventListener("click", doLogout);
-  el("save").addEventListener("click", doSave);
+  el("save").addEventListener("click", requestSave);
   el("discard").addEventListener("click", doDiscard);
 
   probe();

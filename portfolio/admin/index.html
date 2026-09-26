@@ -58,6 +58,7 @@
         <span id="status" class="status" role="status"></span>
         <span class="spacer"></span>
         <span class="kbd-note hidden-sm"><kbd>Ctrl</kbd>+<kbd>S</kbd> saves · edits auto-kept while you switch pages</span>
+        <span id="size-meter" class="kbd-note" hidden></span>
         <button id="discard" type="button" class="btn">Discard</button>
         <button id="save" type="button" class="btn solid kbd-hint">Save changes <kbd>⌃S</kbd></button>
       </div>
@@ -220,6 +221,19 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- save confirmation: what exactly will change -->
+  <div id="save-modal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="save-modal-title">
+      <h3 id="save-modal-title">Save changes?</h3>
+      <p class="modal-sub" id="save-count"></p>
+      <ul id="save-diff" class="diff-list"></ul>
+      <div class="modal-actions">
+        <button id="save-cancel" type="button" class="btn">Keep editing</button>
+        <button id="save-confirm" type="button" class="btn solid">Save changes</button>
+      </div>
+    </div>
+  </div>
 
   <!-- templates for repeatable lists -->
   <template id="tpl-project">

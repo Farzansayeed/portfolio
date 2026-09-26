@@ -2,6 +2,61 @@
    Case study pages (bhukosh.html) — extends the site system
    ============================================================ */
 
+/* ---------- reading progress bar ---------- */
+
+.read-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 90;
+  background: transparent;
+  pointer-events: none;
+}
+
+.read-progress span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+}
+
+/* ---------- section rail (desktop) ---------- */
+
+.cs-rail {
+  position: fixed;
+  right: max(18px, calc((100vw - var(--container)) / 2 - 130px));
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 40;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cs-rail a {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  text-decoration: none;
+  text-align: right;
+  padding: 5px 0;
+  transition: color 0.25s;
+}
+
+.cs-rail a:hover { color: var(--text-2); }
+
+.cs-rail a.active { color: var(--accent); }
+
+.cs-rail a.active::after { content: " ←"; }
+
+@media (min-width: 1440px) {
+  .cs-rail { display: flex; }
+}
+
 .cs-hero {
   padding: 150px 0 0;
   position: relative;

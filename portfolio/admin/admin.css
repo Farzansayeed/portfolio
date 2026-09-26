@@ -468,6 +468,66 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .toast.ok { border-color: rgba(127, 191, 143, 0.5); }
 .toast.err { border-color: var(--err); }
 
+/* ---------- save modal ---------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(11, 10, 8, 0.72);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.modal[hidden] { display: none; }
+
+.modal-card {
+  width: min(460px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  padding: 22px 24px 18px;
+  max-height: min(70vh, 560px);
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-card h3 { margin: 0 0 2px; font-size: 17px; letter-spacing: -0.01em; }
+
+.modal-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-3);
+  margin: 0 0 12px;
+}
+
+.modal-sub.warn { color: var(--err); }
+
+.diff-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 4px 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+
+.diff-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.diff-list li span { color: var(--text-2); }
+.diff-list li em { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--accent); flex: none; }
+
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
 /* ---------- draft recovery bar ---------- */
 
 .draft-bar {

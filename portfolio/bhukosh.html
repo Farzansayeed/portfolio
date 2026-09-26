@@ -10,9 +10,11 @@
   <link rel="canonical" href="https://portfolio-farzan4.vercel.app/bhukosh.html">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="case.css">
+  <script defer src="case.js"></script>
   <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
+  <div class="read-progress" aria-hidden="true"><span id="read-progress-fill"></span></div>
   <a class="skip-link" href="#cs-top">Skip to content</a>
 
   <header class="nav">
@@ -49,7 +51,7 @@
   <main id="main">
 
   <!-- ============ THE 60-SECOND DEMO ============ -->
-  <section class="section cs-section">
+  <section class="section cs-section" id="cs-demo">
     <div class="container cs-narrow">
       <div class="section-head">
         <span class="section-eyebrow">The 60-second demo</span>
@@ -89,7 +91,7 @@
   </section>
 
   <!-- ============ WHY DIFFERENT ============ -->
-  <section class="section cs-section">
+  <section class="section cs-section" id="cs-problem">
     <div class="container cs-narrow">
       <div class="section-head">
         <span class="section-eyebrow">01 — The problem with "the AI read it"</span>
@@ -135,7 +137,7 @@
   </section>
 
   <!-- ============ PIPELINE ============ -->
-  <section class="section cs-section">
+  <section class="section cs-section" id="cs-design">
     <div class="container cs-narrow">
       <div class="section-head">
         <span class="section-eyebrow">02 — System design</span>
@@ -156,7 +158,7 @@
   </section>
 
   <!-- ============ ENGINEERING DECISIONS ============ -->
-  <section class="section cs-section">
+  <section class="section cs-section" id="cs-decisions">
     <div class="container cs-narrow">
       <div class="section-head">
         <span class="section-eyebrow">03 — Engineering decisions</span>
@@ -196,7 +198,7 @@
   </section>
 
   <!-- ============ ARCHITECTURE ============ -->
-  <section class="section cs-section">
+  <section class="section cs-section" id="cs-arch">
     <div class="container cs-narrow">
       <div class="section-head">
         <span class="section-eyebrow">04 — Architecture</span>
@@ -234,7 +236,7 @@
   </section>
 
   <!-- ============ REFLECTION ============ -->
-  <section class="section cs-section">
+  <section class="section cs-section" id="cs-reflect">
     <div class="container cs-narrow">
       <div class="section-head">
         <span class="section-eyebrow">05 — Reflection</span>
@@ -249,7 +251,7 @@
   </section>
 
   <!-- ============ NEXT ============ -->
-  <section class="section cs-section cs-next">
+  <section class="section cs-section cs-next" id="cs-next">
     <div class="container cs-narrow">
       <div class="section-head">
         <span class="section-eyebrow">Next</span>
@@ -264,6 +266,16 @@
   </section>
 
   </main>
+
+  <nav class="cs-rail" aria-label="Case study sections">
+    <a href="#cs-demo" data-spy="cs-demo">Demo</a>
+    <a href="#cs-problem" data-spy="cs-problem">Problem</a>
+    <a href="#cs-design" data-spy="cs-design">Design</a>
+    <a href="#cs-decisions" data-spy="cs-decisions">Decisions</a>
+    <a href="#cs-arch" data-spy="cs-arch">Architecture</a>
+    <a href="#cs-reflect" data-spy="cs-reflect">Reflection</a>
+    <a href="#cs-next" data-spy="cs-next">Next</a>
+  </nav>
 
   <footer class="footer">
     <div class="container footer-inner">
