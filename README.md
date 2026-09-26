@@ -51,6 +51,7 @@ portfolio/             — the website itself (Vercel serves this folder)
   bhukosh.html         — BhuKosh case study
   wikiexplore.html     — WikiExplore case study
   404.html             — Arrow Escape (playful 404 with a solver-validated puzzle game)
+  404.css / 404.js     — the 404 game's styles and engine (solver-validated levels)
   sitemap.xml          — the three public pages
   robots.txt           — allows all, disallows /admin/ and /api/
   styles.css           — design system + all section styles (tokens at the top)
@@ -73,12 +74,15 @@ portfolio/             — the website itself (Vercel serves this folder)
   favicon.svg
   og.png               — social share image (generated)
   make_og.py           — regenerates og.png (Pillow; run from inside portfolio/)
+docs/                  — nav-demo.webm (20-second navigation demo, linked above)
 api/                   — serverless functions (Vercel)
   auth.js              — POST login (rate-limited) / DELETE logout
   content.js           — GET public content, PUT authenticated write
   lib.js               — HMAC sessions, throttle, strict content validator
 vercel.json            — outputDirectory, noindex header for /admin, no-store for /api
 ```
+
+Not in the repo: `_qa/` (gitignored) holds local-only QA tooling — a static server with a mocked content API, a deterministic CDP screenshot capturer, and a production link crawler. It never ships and is not needed to run, edit, or deploy the site.
 
 ## Private content editing
 
@@ -124,11 +128,11 @@ The page silently navigates to `/admin/` — a plain login screen. On mobile, ta
 
 **Content (recommended way)** — sign in to `/admin/` (trigger above), edit, save. Changes go live for everyone instantly, no deploy.
 
-**Projects (in code)** — the flagship project (BhuKosh) is a full case study: `<article class="case case-flagship">` in `portfolio/index.html` with a metadata row (Role / Team / Timeline / Stack), Problem → My contribution → System design → Key trade-off → Outcome, a screenshot figure (`portfolio/shots/`), and links. The second project follows the same pattern with the shorter row set. To add a project: duplicate a block, edit the text rows, and point the screenshot at a new file in `shots/`. Empty rows and metadata cells hide automatically.
+**Projects (in code)** — the flagship project (BhuKosh) is a full case study: `<article class="case case-flagship">` in `portfolio/index.html` with a metadata row (Role / Team / Timeline / Stack), Problem → My contribution → System design → Key trade-off → Outcome, a screenshot figure (`portfolio/shots/`), and links. The second project follows the same pattern with the shorter row set, and substantial projects can get a dedicated case-study page (`bhukosh.html` / `wikiexplore.html` show the pattern: reading progress, section rail, palette chip). To add a project: duplicate a block, edit the text rows, point the screenshot at a new file in `shots/` — and add it to the `PROJECTS` list at the top of `portfolio/nav.js` so it appears in the command palette. Empty rows and metadata cells hide automatically.
 
-**Screenshots & résumé (manual, before sending to recruiters)** — `shots/wikiexplore.png` and `shots/wikiexplore-reader.png` are **real live captures** of the deployed site (see `_qa/capture.mjs` for the deterministic capture tooling). `shots/bhukosh.png` and `resume.pdf` remain clearly-labeled **placeholders** — replace them with a real capture of the live app (once its database is running) and a real one-page PDF — same filenames, no code changes needed.
+**Screenshots & résumé (manual, before sending to recruiters)** — `shots/wikiexplore.png` and `shots/wikiexplore-reader.png` are **real live captures** of the deployed site. `shots/bhukosh.png` and `resume.pdf` remain clearly-labeled **placeholders** — replace them with a real capture of the live app (once its database is running) and a real one-page PDF — same filenames, no code changes needed. (The capture tooling that produced the WikiExplore shots lives in the gitignored local `_qa/` folder — any headless-Chrome screenshot flow works.)
 
-**Skills (in code)** — edit the `<ul>` lists inside `.skill-group` blocks in the Skills section of `portfolio/index.html`. Add a category by duplicating a `.skill-group` div.
+**Skills (in code)** — edit the `<ul>` lists inside `.skill-group` blocks in the Skills section of `portfolio/index.html`. Add a category by duplicating a `.skill-group` div. If a project's stack changes, also update the `.skill-evidence` strip right below the skills note — it maps each project (and this site) to the capabilities it demonstrates.
 
 **Achievements (in code)** — each item is one `<li class="achievement">` in the Achievements section. Duplicate, edit year/title/text/link. No CSS changes needed.
 
