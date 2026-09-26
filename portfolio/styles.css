@@ -630,6 +630,49 @@ h2 {
   letter-spacing: 0.02em;
 }
 
+/* ---------- skill → evidence ---------- */
+
+.skill-evidence {
+  display: grid;
+  gap: 1px;
+  background: var(--hairline);
+  border: 1px solid var(--hairline);
+  margin-top: 34px;
+}
+
+.skill-ev {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 20px;
+  align-items: baseline;
+  padding: 16px 20px;
+  background: var(--bg);
+  text-decoration: none;
+  transition: background 0.25s var(--ease);
+}
+
+.skill-ev:hover { background: var(--bg-lift); }
+
+.skill-ev-proj {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.skill-ev:hover .skill-ev-proj { color: var(--accent-strong); }
+
+.skill-ev-skills {
+  color: var(--text-2);
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .skill-ev { grid-template-columns: 1fr; gap: 4px; padding: 14px 16px; }
+}
+
 /* ---------- Achievements ---------- */
 
 .achievements { border-top: 1px solid var(--hairline); }
