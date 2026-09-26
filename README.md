@@ -1,8 +1,25 @@
 # Farzan Sayeed Hashmi — Portfolio
 
-Single-page developer portfolio. Hand-written HTML, CSS, and JavaScript with a Three.js wave-field hero — no framework, no npm/build dependencies. External resources are two CDN loads (Inter font, Three.js module) and nothing else.
+Developer portfolio with a spatial navigation system, two engineering case studies, and a Three.js atmosphere — hand-written HTML, CSS, and JavaScript, no framework, no npm/build dependencies. External resources are two CDN loads (Inter font, Three.js module) and nothing else.
 
 **Live:** https://portfolio-farzan4.vercel.app
+
+**Navigation in 20 seconds** ([docs/nav-demo.webm](docs/nav-demo.webm)): the right-edge rail tracks the active section and condenses on scroll-down, and `Ctrl/⌘K` opens a command palette that fuzzy-matches projects — typing "bhu" jumps straight to the BhuKosh case study.
+
+## Navigation: Spatial Command Navigation
+
+The site's defining feature is a layered navigation system (`portfolio/nav.js` + `portfolio/nav.css`), all driven by **one IntersectionObserver source of truth** broadcasting a `nav:section` event:
+
+| Surface | Where | Behavior |
+|---|---|---|
+| Desktop rail | right edge, ≥1100px | active section dominant; condenses on scroll-down, re-expands on scroll-up or hover; ⌘K chip |
+| Mobile bar | bottom, <760px | current-section pill + ⌘K; recedes/returns with scroll direction; opens the section sheet |
+| Command palette | every page, Ctrl/⌘K | fuzzy search over sections, projects, case studies, and external links; full keyboard model, focus restore; scoped on case pages |
+| Case rail | case-study pages ≥1440px | scroll-spy over the document's own sections |
+| Dot surface | hover on the brand dot | quick-jump menu; the 5-click admin trigger is never intercepted |
+| Atmosphere | the orb field | `nav:section` modulates drift speed (±15%) and eases a per-section formation shift — atmosphere reacts, it never navigates |
+
+Conventional paths are always intact: the top navbar, footer links, real anchors, and direct URLs. Reduced motion collapses transitions but preserves all state changes. The magnetic hover on the hero CTA is fine-pointer-only and reduced-motion-safe.
 
 ## Stack
 
@@ -10,8 +27,9 @@ Single-page developer portfolio. Hand-written HTML, CSS, and JavaScript with a T
 |---|---|
 | Structure | Semantic HTML5 |
 | Styling | Hand-written CSS (design tokens in `:root` of `portfolio/styles.css`) |
-| Behavior | Vanilla JS (`portfolio/main.js`) |
-| Hero visual | Three.js r160 via CDN ESM import (`portfolio/three-hero.js`) |
+| Behavior | Vanilla JS (`portfolio/main.js`, `portfolio/nav.js`, `portfolio/case.js`) |
+| Hero visual | Three.js r160 via CDN ESM import (`portfolio/three-hero.js`) + 2D orb field (`portfolio/orb-field.js`) |
+| Command palette | `portfolio/nav.js` — zero dependencies |
 
 **Dependency note:** "no dependencies" above means no npm packages, no build step, no framework. The page does load two external resources from CDNs (the Inter font and the Three.js module). Keep the importmap pinned — it is the only Three.js reference.
 
@@ -30,8 +48,17 @@ python -m http.server 8000
 ```
 portfolio/             — the website itself (Vercel serves this folder)
   index.html           — structure + bundled fallback content
+  bhukosh.html         — BhuKosh case study
+  wikiexplore.html     — WikiExplore case study
+  404.html             — Arrow Escape (playful 404 with a solver-validated puzzle game)
+  sitemap.xml          — the three public pages
+  robots.txt           — allows all, disallows /admin/ and /api/
   styles.css           — design system + all section styles (tokens at the top)
-  main.js              — nav state, mobile menu, scroll reveals, email copy, hidden editor trigger
+  main.js              — nav state, mobile menu, scroll reveals, email copy, magnetic CTA, hidden editor trigger
+  nav.js               — Spatial Command Navigation controller (rail, mobile bar, palette, dot surface, atmosphere link)
+  nav.css              — navigation surfaces, breakpoints, reduced-motion rules
+  case.js              — case-study reading progress + section spy
+  case.css             — case-study layout (hero, pillars, pipeline, decisions, architecture)
   three-hero.js        — Three.js wave-field hero
   orb-field.js         — hero orb layer: the real "thinking orbs" engine (vendored as
                          orb-engine.js, MIT © Jakub Antalik) rendering a field of
@@ -39,7 +66,7 @@ portfolio/             — the website itself (Vercel serves this folder)
                          respects reduced motion
   content.client.js    — hydrates saved content over the fallback (public, ~4 KB)
   content.default.json — bundled fallback content (= what ships in the HTML)
-  shots/               — project screenshots (placeholder images until real captures replace them)
+  shots/               — project screenshots (WikiExplore: real captures; BhuKosh: placeholder until its DB is back)
   resume.pdf           — résumé download (placeholder until the real PDF replaces it)
   make_placeholders.py — regenerates the placeholder shots + resume.pdf
   admin/               — private editor (login + forms; noindex)
@@ -99,7 +126,7 @@ The page silently navigates to `/admin/` — a plain login screen. On mobile, ta
 
 **Projects (in code)** — the flagship project (BhuKosh) is a full case study: `<article class="case case-flagship">` in `portfolio/index.html` with a metadata row (Role / Team / Timeline / Stack), Problem → My contribution → System design → Key trade-off → Outcome, a screenshot figure (`portfolio/shots/`), and links. The second project follows the same pattern with the shorter row set. To add a project: duplicate a block, edit the text rows, and point the screenshot at a new file in `shots/`. Empty rows and metadata cells hide automatically.
 
-**Screenshots & résumé (manual, before sending to recruiters)** — `shots/bhukosh.png`, `shots/wikiexplore.png`, and `resume.pdf` are generated **placeholders** (clearly labeled; regenerate via `python make_placeholders.py` from inside `portfolio/`). Replace them with a real capture of the live app/site and a real one-page PDF — same filenames, no code changes needed.
+**Screenshots & résumé (manual, before sending to recruiters)** — `shots/wikiexplore.png` and `shots/wikiexplore-reader.png` are **real live captures** of the deployed site (see `_qa/capture.mjs` for the deterministic capture tooling). `shots/bhukosh.png` and `resume.pdf` remain clearly-labeled **placeholders** — replace them with a real capture of the live app (once its database is running) and a real one-page PDF — same filenames, no code changes needed.
 
 **Skills (in code)** — edit the `<ul>` lists inside `.skill-group` blocks in the Skills section of `portfolio/index.html`. Add a category by duplicating a `.skill-group` div.
 
