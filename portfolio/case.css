@@ -252,6 +252,15 @@
   white-space: pre;
 }
 
+/* 4-item strip (wikiexplore) */
+.stat-strip-4 { grid-template-columns: repeat(4, 1fr); }
+
+/* standalone screenshot (wikiexplore overview) */
+.cs-shot-standalone {
+  max-width: 760px;
+  margin: 0 auto 26px;
+}
+
 .stat-strip {
   display: grid;
   grid-template-columns: repeat(7, 1fr);

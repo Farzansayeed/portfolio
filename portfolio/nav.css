@@ -403,9 +403,9 @@
   z-index: 45;
 }
 
-@media (max-width: 759px) {
-  .cs-palette-chip { display: none; } /* the mbar owns ⌘K on mobile */
-}
+/* The chip only ever renders on case-study pages, where no mbar exists —
+   so it stays visible at every width: on phones it is that page's only
+   command surface (the homepage mobile bar handles ⌘K there instead). */
 
 /* ---------- reduced motion ---------- */
 

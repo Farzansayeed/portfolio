@@ -81,6 +81,7 @@
       "outcome": "",
       "tech": ["JavaScript", "HTML / CSS", "Wikimedia APIs"],
       "links": [
+        { "label": "Case study", "url": "wikiexplore.html" },
         { "label": "Live site", "url": "https://wiki-explore.vercel.app" },
         { "label": "Source", "url": "https://github.com/Farzansayeed/wiki-explore" }
       ],

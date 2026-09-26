@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WikiExplore — case study · Farzan Sayeed Hashmi</title>
+  <meta name="description" content="How WikiExplore works: a live reading portal for all 66 million Wikipedia articles — one Wikimedia feed call, live sections with a table of contents, cross-link previews, and real numbered footnotes. No database, no backend, no framework: ~4,240 lines of hand-written vanilla JS.">
+  <meta name="theme-color" content="#0b0a08">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="canonical" href="https://portfolio-farzan4.vercel.app/wikiexplore.html">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://portfolio-farzan4.vercel.app/wikiexplore.html">
+  <meta property="og:title" content="WikiExplore — case study · Farzan Sayeed Hashmi">
+  <meta property="og:description" content="A live reading portal for all 66 million Wikipedia articles — one feed call, real numbered footnotes, no backend. ~4,240 lines of hand-written vanilla JS.">
+  <meta property="og:image" content="https://portfolio-farzan4.vercel.app/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+
+  <!-- Twitter/X -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="WikiExplore — case study · Farzan Sayeed Hashmi">
+  <meta name="twitter:description" content="A live reading portal for all 66 million Wikipedia articles — one feed call, real numbered footnotes, no backend. ~4,240 lines of hand-written vanilla JS.">
+  <meta name="twitter:image" content="https://portfolio-farzan4.vercel.app/og.png">
+
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="nav.css">
+  <link rel="stylesheet" href="case.css">
+  <script defer src="case.js"></script>
+  <script defer src="nav.js"></script>
+  <script defer src="/_vercel/insights/script.js"></script>
+</head>
+<body>
+  <div class="read-progress" aria-hidden="true"><span id="read-progress-fill"></span></div>
+  <a class="skip-link" href="#cs-top">Skip to content</a>
+
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="index.html">Farzan S. Hashmi<span>.</span></a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="index.html">Home</a>
+        <a href="index.html#projects">Projects</a>
+        <a href="index.html#contact">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ============ HERO ============ -->
+  <section class="cs-hero" id="cs-top">
+    <div class="container">
+      <p class="eyebrow">Case study · Solo build · 2026</p>
+      <h1>WikiExplore</h1>
+      <p class="cs-lede">A live reading portal for all 66&nbsp;million Wikipedia articles. It opens on today's real featured article, pulls live sections with a table of contents, weaves in cross-link previews, and merges each chapter's citations into real numbered footnotes — <em>no database, no backend, no framework</em>, in ~4,240 lines of hand-written vanilla JS.</p>
+      <div class="cs-hero-cta">
+        <a class="btn btn-solid" href="https://wiki-explore.vercel.app" target="_blank" rel="noopener">Open the live site</a>
+        <a class="btn btn-ghost" href="https://github.com/Farzansayeed/wiki-explore" target="_blank" rel="noopener">Source</a>
+      </div>
+      <dl class="case-meta cs-meta">
+        <div><dt>Role</dt><dd>Solo build</dd></div>
+        <div><dt>Team</dt><dd>Solo</dd></div>
+        <div><dt>Timeline</dt><dd>2026</dd></div>
+        <div><dt>Stack</dt><dd>JavaScript · HTML/CSS · Wikimedia APIs</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <main id="main">
+
+  <!-- ============ WHAT IT IS ============ -->
+  <section class="section cs-section" id="cs-overview">
+    <div class="container cs-narrow">
+      <div class="section-head">
+        <span class="section-eyebrow">01 — What it is</span>
+        <h2>All of Wikipedia, one portal.</h2>
+      </div>
+      <p class="cs-lede">WikiExplore turns any visit into a reading session on today's Wikipedia: the featured article boots first, and everything it presents — sections, previews, footnotes — comes live from Wikimedia's public APIs.</p>
+    </div>
+    <div class="container">
+      <figure class="case-shot cs-shot-standalone">
+        <img src="shots/wikiexplore.png" alt="WikiExplore screenshot placeholder — dark editorial reading layout with a featured-article panel and a thin accent rule (replace with a real capture of the live site)." loading="lazy" decoding="async" width="640" height="480">
+        <figcaption>Placeholder — replace with a real capture of today's featured article.</figcaption>
+      </figure>
+      <div class="stat-strip stat-strip-4">
+        <div class="stat"><b>66M</b><span>Wikipedia articles</span></div>
+        <div class="stat"><b>1</b><span>feed call, whole home page</span></div>
+        <div class="stat"><b>~4,240</b><span>lines of vanilla JS</span></div>
+        <div class="stat"><b>0</b><span>backends</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ WHY IT EXISTS ============ -->
+  <section class="section cs-section" id="cs-why">
+    <div class="container cs-narrow">
+      <div class="section-head">
+        <span class="section-eyebrow">02 — Why it exists</span>
+        <h2>The honest rebuild.</h2>
+      </div>
+      <p class="cs-lede">WikiExplore began as a hackathon build that shipped ~27&nbsp;KB of hardcoded articles pretending to be a library. It looked like a reading portal; it wasn't one.</p>
+      <p class="cs-lede">The rebuild deleted the pretense. WikiExplore is the honest version: <em>everything live, nothing canned</em>. It runs entirely on Wikimedia's public APIs and opens on today's real featured article — the same page a reader would find on Wikipedia itself, every visit.</p>
+    </div>
+  </section>
+
+  <!-- ============ HOW IT WORKS ============ -->
+  <section class="section cs-section" id="cs-system">
+    <div class="container cs-narrow">
+      <div class="section-head">
+        <span class="section-eyebrow">03 — How it works</span>
+        <h2>One feed call in, a reading experience out.</h2>
+      </div>
+      <ol class="pipeline">
+        <li><span>FEED</span> One Wikimedia feed call powers the home page — featured article of the day, most-read, on-this-day history, and news.</li>
+        <li><span>READER</span> The reader boots today's featured article — the real one, served live by Wikimedia's public APIs.</li>
+        <li><span>SECTIONS</span> It pulls the article's live sections with a table of contents.</li>
+        <li><span>PREVIEWS</span> Cross-links weave in previews along the way.</li>
+        <li><span>FOOTNOTES</span> Each chapter's citations merge into real numbered footnotes.</li>
+      </ol>
+      <p class="pipeline-note">No database, no backend, no framework — the whole experience runs in the browser, in ~4,240 lines of hand-written vanilla JS.</p>
+    </div>
+  </section>
+
+  <!-- ============ DECISIONS ============ -->
+  <section class="section cs-section" id="cs-decisions">
+    <div class="container cs-narrow">
+      <div class="section-head">
+        <span class="section-eyebrow">04 — Decisions</span>
+        <h2>Restraint is the architecture.</h2>
+      </div>
+
+      <div class="decision">
+        <h3>No database, no backend, no framework</h3>
+        <p>A reading portal's job is presenting Wikimedia's content well — WikiExplore adds no infrastructure of its own to do it. Every capability ships as hand-written vanilla JS (~4,240 lines), which keeps the project exactly what it claims to be.</p>
+      </div>
+
+      <div class="decision">
+        <h3>Everything live, nothing canned</h3>
+        <p>The home page runs on a single Wikimedia feed call — featured article of the day, most-read, on-this-day history, and news. Nothing is hardcoded, so what a visitor sees is what Wikipedia is serving that day.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ NEXT ============ -->
+  <section class="section cs-section cs-next" id="cs-next">
+    <div class="container cs-narrow">
+      <div class="section-head">
+        <span class="section-eyebrow">Next</span>
+        <h2>Also built: BhuKosh.</h2>
+        <p class="cs-next-sub">Evidence-bound land-record digitization for Smart India Hackathon 2026 — every AI-extracted value stays bound to the exact pixels it was read from.</p>
+      </div>
+      <div class="cs-hero-cta">
+        <a class="btn btn-solid" href="bhukosh.html">Read the BhuKosh case study</a>
+        <a class="btn btn-ghost" href="index.html#project-bhukosh">View BhuKosh on the homepage</a>
+      </div>
+    </div>
+  </section>
+
+  </main>
+
+  <nav class="cs-rail" aria-label="Case study sections">
+    <a href="#cs-overview" data-spy="cs-overview">Overview</a>
+    <a href="#cs-why" data-spy="cs-why">Why</a>
+    <a href="#cs-system" data-spy="cs-system">System</a>
+    <a href="#cs-decisions" data-spy="cs-decisions">Decisions</a>
+    <a href="#cs-next" data-spy="cs-next">Next</a>
+  </nav>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>© <span>2026</span> Farzan Sayeed Hashmi</p>
+      <div class="footer-links">
+        <a class="footer-link" href="resume.pdf" download>Résumé</a>
+        <a class="footer-link" href="https://github.com/Farzansayeed" target="_blank" rel="noopener">GitHub</a>
+        <a class="footer-link" href="https://www.linkedin.com/in/farzan-sayeed-hashmi-b9876539b/" target="_blank" rel="noopener">LinkedIn</a>
+        <a class="footer-link" href="mailto:farzansayeedhashmi@gmail.com">Email</a>
+      </div>
+      <a class="arrow-link" href="#cs-top">Back to top</a>
+    </div>
+  </footer>
+</body>
+</html>

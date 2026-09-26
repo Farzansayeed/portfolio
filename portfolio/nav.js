@@ -39,7 +39,8 @@
 
   var PROJECTS = [
     { label: "BhuKosh",     hint: "Case study",    href: "bhukosh.html" },
-    { label: "WikiExplore", hint: "Live site",     href: "https://wiki-explore.vercel.app", external: true },
+    { label: "WikiExplore", hint: "Case study",    href: "wikiexplore.html" },
+    { label: "WikiExplore live", hint: "Live site", href: "https://wiki-explore.vercel.app", external: true },
   ];
 
   var EXTERNALS = [
