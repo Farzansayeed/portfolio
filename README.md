@@ -1,25 +1,40 @@
 # Farzan Sayeed Hashmi — Portfolio
 
-Developer portfolio with a spatial navigation system, two engineering case studies, and a Three.js atmosphere — hand-written HTML, CSS, and JavaScript, no framework, no npm/build dependencies. External resources are two CDN loads (Inter font, Three.js module) and nothing else.
+This is my portfolio, and I built every line of it by hand. No framework, no npm, no build step — just HTML, CSS, and JavaScript that loads fast and works everywhere.
 
 **Live:** https://portfolio-farzan4.vercel.app
 
-**Navigation in 20 seconds** ([docs/nav-demo.webm](docs/nav-demo.webm)): the right-edge rail tracks the active section and condenses on scroll-down, and `Ctrl/⌘K` opens a command palette that fuzzy-matches projects — typing "bhu" jumps straight to the BhuKosh case study.
+Watch 20 seconds of the navigation doing its thing: [docs/nav-demo.webm](docs/nav-demo.webm)
 
-## Navigation: Spatial Command Navigation
+## Why this site is worth your time
 
-The site's defining feature is a layered navigation system (`portfolio/nav.js` + `portfolio/nav.css`), all driven by **one IntersectionObserver source of truth** broadcasting a `nav:section` event:
+**It navigates like nothing else.** A quiet instrument sits on the right edge of the screen, always showing where you are. Scroll down and it steps back; scroll up and it returns. Press `Ctrl+K` (or `⌘K` on a Mac) and a command palette opens — type "bhu" and you're one Enter away from the BhuKosh engineering case study. Every piece of navigation listens to **one** observer, so nothing ever disagrees about where you are.
 
-| Surface | Where | Behavior |
-|---|---|---|
-| Desktop rail | right edge, ≥1100px | active section dominant; condenses on scroll-down, re-expands on scroll-up or hover; ⌘K chip |
-| Mobile bar | bottom, <760px | current-section pill + ⌘K; recedes/returns with scroll direction; opens the section sheet |
-| Command palette | every page, Ctrl/⌘K | fuzzy search over sections, projects, case studies, and external links; full keyboard model, focus restore; scoped on case pages |
-| Case rail | case-study pages ≥1440px | scroll-spy over the document's own sections |
-| Dot surface | hover on the brand dot | quick-jump menu; the 5-click admin trigger is never intercepted |
-| Atmosphere | the orb field | `nav:section` modulates drift speed (±15%) and eases a per-section formation shift — atmosphere reacts, it never navigates |
+**The projects are told like engineering, not marketing.** BhuKosh and WikiExplore each get a real case study: the problem, the architecture, the decisions, and the trade-offs — with a reading-progress bar and a section rail that follows you down the page. Every claim on the site is something you can click and verify live.
 
-Conventional paths are always intact: the top navbar, footer links, real anchors, and direct URLs. Reduced motion collapses transitions but preserves all state changes. The magnetic hover on the hero CTA is fine-pointer-only and reduced-motion-safe.
+**The 404 page is a game.** Get lost, and the site hands you "Arrow Escape" — a little puzzle where every arrow must find its way off the board. It's fully keyboard-accessible and it respects reduced motion, because even the easter egg has standards.
+
+**It edits itself.** There's a hidden admin (five clicks on the dot in my name) where content can be changed and saved centrally — no redeploy, no downtime. And no, finding the trigger gets you nothing: everything behind it requires the password server-side.
+
+**It's genuinely fast and genuinely accessible.** Zero dependencies. Keyboard-only navigation works end to end. Reduced motion is honored everywhere. The Three.js hero pauses when you scroll past it and gets out of the way entirely if WebGL fails.
+
+## The pages
+
+| Page | What it is |
+|---|---|
+| `/` | Who I am, what I build, and proof — projects, skills, achievements, contact |
+| `bhukosh.html` | Full case study: evidence-bound land-record AI (Smart India Hackathon 2026) |
+| `wikiexplore.html` | Case study: a live Wikipedia reading portal, no backend, no framework |
+| `404.html` | Arrow Escape — the puzzle you get to play when you get lost |
+
+## How the website works (the simple version)
+
+- **One observer decides where you are.** An IntersectionObserver watches the page's sections and broadcasts a single `nav:section` event. The desktop rail, the mobile bottom bar, and the orb field all listen to that one event — so they always agree.
+- **The command palette searches everything.** Sections, projects, case studies, and external links — with fuzzy matching, full keyboard control, and focus returned where it came from when you close it.
+- **Case studies navigate themselves.** Their own rail tracks the section you're reading, a thin bar shows how far through the story you are, and the palette is scoped to what exists on that page.
+- **The atmosphere listens but never leads.** The orb field subtly changes speed and formation as you move between sections. It reacts to navigation; it never is the navigation.
+- **Nothing depends on anything fancy.** No JavaScript framework, no hover-only paths, no WebGL required. If a fancy layer fails, the plain links, the menu, the footer, and the palette still work.
+- **Content has a source of truth.** The site ships with bundled content; a hidden admin can save new content centrally, and every visitor gets it instantly. If the store is ever down, the bundled content takes over silently — the site never breaks.
 
 ## Stack
 
@@ -31,7 +46,7 @@ Conventional paths are always intact: the top navbar, footer links, real anchors
 | Hero visual | Three.js r160 via CDN ESM import (`portfolio/three-hero.js`) + 2D orb field (`portfolio/orb-field.js`) |
 | Command palette | `portfolio/nav.js` — zero dependencies |
 
-**Dependency note:** "no dependencies" above means no npm packages, no build step, no framework. The page does load two external resources from CDNs (the Inter font and the Three.js module). Keep the importmap pinned — it is the only Three.js reference.
+**Dependency note:** "no dependencies" means no npm packages, no build step, no framework. The page does load two external resources from CDNs (the Inter font and the Three.js module). Keep the importmap pinned — it is the only Three.js reference.
 
 ## Local development
 
