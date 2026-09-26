@@ -47,6 +47,13 @@
     </aside>
 
     <main class="main">
+      <div id="draft-bar" class="draft-bar" hidden>
+        <span>Unsaved draft from <b id="draft-when"></b> found on this device.</span>
+        <span class="spacer"></span>
+        <button id="draft-discard" type="button" class="btn small">Discard draft</button>
+        <button id="draft-restore" type="button" class="btn small solid">Restore draft</button>
+      </div>
+
       <div class="actionbar">
         <span id="status" class="status" role="status"></span>
         <span class="spacer"></span>
@@ -241,6 +248,7 @@
           </select></label>
           <label class="full">Visual caption <input data-k="visualCaption" type="text" maxlength="120"></label>
         </div>
+        <img class="shot-thumb" alt="Screenshot preview" hidden>
         <details class="sub"><summary>Story</summary>
           <div class="grid">
             <label class="full">What it is <textarea data-k="whatItIs" rows="2" maxlength="1200"></textarea></label>

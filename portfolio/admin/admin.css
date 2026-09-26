@@ -468,6 +468,41 @@ input::placeholder, textarea::placeholder { color: var(--text-3); }
 .toast.ok { border-color: rgba(127, 191, 143, 0.5); }
 .toast.err { border-color: var(--err); }
 
+/* ---------- draft recovery bar ---------- */
+
+.draft-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(211, 169, 92, 0.35);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.draft-bar .spacer { flex: 1; }
+.draft-bar b { color: var(--accent-strong); font-weight: 600; }
+
+/* ---------- project screenshot thumbnail ---------- */
+
+.shot-thumb {
+  display: block;
+  width: 132px;
+  height: 99px;
+  object-fit: cover;
+  object-position: top;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-top: 10px;
+  background: var(--bg-lift);
+}
+
+.shot-thumb[hidden] { display: none; }
+
 /* ---------- unsaved dot in title ---------- */
 
 body.dirty .brand::after {

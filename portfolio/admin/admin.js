@@ -34,6 +34,59 @@
   };
 
   var el = function (id) { return document.getElementById(id); };
+
+  // ---------- draft autosave (localStorage) ----------
+  // Unsaved edits are mirrored into localStorage on every change, so a
+  // crash, logout, or closed tab never loses work. Restored on next visit
+  // with a one-click bar; cleared on save and discard.
+  var DRAFT_KEY = "pf_admin_draft_v1";
+
+  function draftSave() {
+    if (!dirty || !state) return;
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        at: Date.now(),
+        route: currentRoute,
+        content: state,
+      }));
+    } catch (e) { /* storage full/blocked — autosave is best-effort */ }
+  }
+
+  function draftClear() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* noop */ }
+  }
+
+  function draftPeek() {
+    try {
+      var raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return null;
+      var d = JSON.parse(raw);
+      return d && d.content && typeof d.content === "object" ? d : null;
+    } catch (e) { return null; }
+  }
+
+  function draftOffer() {
+    var d = draftPeek();
+    if (!d) return;
+    var bar = el("draft-bar");
+    if (!bar) return;
+    el("draft-when").textContent = new Date(d.at).toLocaleString();
+    bar.hidden = false;
+    el("draft-restore").onclick = function () {
+      state = d.content;
+      refillSimple();
+      renderLists();
+      setDirty(true);
+      bar.hidden = true;
+      draftClear();
+      toast("Draft restored — review and save", "ok");
+    };
+    el("draft-discard").onclick = function () {
+      draftClear();
+      bar.hidden = true;
+      toast("Draft discarded", "");
+    };
+  }
   var loginView = el("login-view");
   var editorView = el("editor-view");
   var loginMsg = el("login-msg");
@@ -63,6 +116,7 @@
     document.body.classList.toggle("dirty", v);
     document.title = baseTitle + (v ? " — unsaved" : "");
     setStatus(v ? "Unsaved changes" : "All changes saved", v ? "err" : "ok");
+    if (v) draftSave();
   }
 
   // ---------- API ----------
@@ -207,6 +261,23 @@
   }
 
   function fillCard(card, item) {
+    // live screenshot preview (site-relative path typed into the card)
+    var thumb = card.querySelector(".shot-thumb");
+    if (thumb) thumb.addEventListener("error", function () { thumb.hidden = true; });
+    function refreshThumb() {
+      var src = item.screenshot && item.screenshot.src;
+      if (thumb) {
+        if (src) {
+          thumb.hidden = false;
+          if (thumb.getAttribute("src") !== "../" + src) thumb.setAttribute("src", "../" + src);
+        } else {
+          thumb.hidden = true;
+          thumb.removeAttribute("src");
+        }
+      }
+    }
+    refreshThumb();
+
     card.querySelectorAll("[data-k]").forEach(function (input) {
       var k = input.getAttribute("data-k");
       var sk = shotKey(k);
@@ -233,6 +304,7 @@
         } else if (sk) {
           item.screenshot = item.screenshot || {};
           item.screenshot[sk] = input.value;
+          if (sk === "src") refreshThumb();
         } else {
           item[k] = input.value;
         }
@@ -506,6 +578,7 @@
           state = r.data.content;
           refillSimple();
           renderLists();
+          draftClear();
           setDirty(false);
           setStatus("Saved ✓ — live for all visitors" +
             (r.data.savedAt ? " at " + new Date(r.data.savedAt).toLocaleTimeString() : ""), "ok");
@@ -529,6 +602,7 @@
 
   function doDiscard() {
     if (dirty && !confirm("Discard unsaved changes?")) return;
+    draftClear();
     loadContent().then(function (c) {
       state = c;
       refillSimple();
@@ -575,6 +649,7 @@
         wireAddButtons();
         setDirty(false);
         showEditor();
+        draftOffer();
         setStatus("Loaded saved content.", "ok");
       })
       .catch(function () {
