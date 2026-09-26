@@ -78,6 +78,19 @@ import {
     buildLayout();
   }
 
+  // ---- section reorganization ----
+  // nav.js writes data-section-shift (the active section's index). The
+  // field eases toward that seed, and each orb's resting position slides
+  // along a per-orb vector derived from it — the formation quietly
+  // reorganizes per section. Eased exponentially (~1s settle); costs two
+  // extra trig calls per orb per frame.
+  var shiftCur = 0, shiftTarget = 0;
+
+  function readShift() {
+    var v = parseInt(canvas.dataset.sectionShift || "0", 10);
+    if (!isNaN(v) && v !== shiftTarget) shiftTarget = v;
+  }
+
   function drawAll(tNow) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
@@ -86,12 +99,18 @@ import {
     // the atmosphere breathes with the page without ever driving navigation
     var mod = parseFloat(canvas.dataset.sectionMod || "1") || 1;
     tNow *= mod;
+    readShift();
+    shiftCur += (shiftTarget - shiftCur) * 0.035;
     for (var i = 0; i < layout.length; i++) {
       var o = layout[i];
       var s = o.size;
+      // per-orb reorganization offset from the section seed (golden-angle
+      // spread keeps neighbors from moving in lockstep)
+      var reoX = Math.sin(shiftCur * 1.7 + i * 2.399) * 24 * o.depth;
+      var reoY = Math.cos(shiftCur * 1.3 + i * 1.618) * 17 * o.depth;
       // slow independent drift per orb
-      var x = o.x * W - s / 2 + Math.sin(tNow * 0.05 * o.speedJit + o.phase) * 16 * o.depth;
-      var y = o.y * H - s / 2 + Math.cos(tNow * 0.04 * o.speedJit + o.phase * 2) * 12 * o.depth;
+      var x = o.x * W - s / 2 + reoX + Math.sin(tNow * 0.05 * o.speedJit + o.phase) * 16 * o.depth;
+      var y = o.y * H - s / 2 + reoY + Math.cos(tNow * 0.04 * o.speedJit + o.phase * 2) * 12 * o.depth;
       ctx.save();
       ctx.translate(x, y);
       ctx.beginPath();

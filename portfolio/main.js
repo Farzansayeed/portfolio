@@ -137,6 +137,44 @@
     });
   }
 
+  // ----- Magnetic primary CTA -----
+  // Selective tactility: only the hero's solid CTA leans toward the
+  // pointer, and only where a fine pointer exists (mouse/trackpad). Touch
+  // and keyboard users see a plain button; reduced motion opts out.
+  const cta = document.querySelector(".hero-cta .btn-solid");
+  if (
+    cta &&
+    window.matchMedia("(pointer: fine)").matches &&
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    const STRENGTH = 0.22;   // fraction of the offset the button follows
+    const MAX_SHIFT = 7;     // px — enough to feel, too little to misalign
+    let raf = 0, tx = 0, ty = 0;
+
+    const apply = () => {
+      raf = 0;
+      // the base .btn transition would lag per-frame tracking — only the
+      // pointerleave spring-back animates
+      cta.style.transition = "none";
+      cta.style.transform = `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px)`;
+    };
+
+    cta.addEventListener("pointermove", (e) => {
+      const r = cta.getBoundingClientRect();
+      tx = Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, (e.clientX - r.left - r.width / 2) * STRENGTH));
+      ty = Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, (e.clientY - r.top - r.height / 2) * STRENGTH));
+      if (!raf) raf = requestAnimationFrame(apply);
+    });
+    cta.addEventListener("pointerleave", () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      tx = 0; ty = 0;
+      cta.style.transition = "transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1)";
+      cta.style.transform = "translate(0, 0)";
+      setTimeout(() => { cta.style.transition = ""; }, 420);
+    });
+  }
+
   // ----- Hidden editor trigger -----
   // The nav brand mark (dot) is the only hint. 5 clicks within 3 seconds on
   // the brand opens /admin/. Obscurity is NOT security — the editor still

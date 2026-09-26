@@ -465,14 +465,19 @@
   function Atmosphere() {
     var canvas = document.getElementById("hero-orbs");
     if (!canvas) return;
-    // orb-field.js reads data-section-mod each frame; ±15% around 1 —
-    // perceptible on a stare, invisible in a glance. Atmosphere reacts to
-    // navigation; it never drives it.
+    // orb-field.js reads two signals each frame: data-section-mod (drift
+    // speed, ±15% around 1) and data-section-shift (a per-section seed the
+    // field reorganizes around, eased in orb-field.js). Perceptible on a
+    // stare, invisible in a glance. Atmosphere reacts to navigation; it
+    // never drives it.
     document.addEventListener("nav:section", function (e) {
       var i = SECTIONS.findIndex(function (s) { return s.id === e.detail.id; });
-      canvas.dataset.sectionMod = String(0.85 + ((i === -1 ? 0 : i) % 4) * 0.1);
+      if (i === -1) i = 0;
+      canvas.dataset.sectionMod = String(0.85 + (i % 5) * 0.075);
+      canvas.dataset.sectionShift = String(i);
     });
     canvas.dataset.sectionMod = "0.85";
+    canvas.dataset.sectionShift = "0";
   }
 
   // ============================================================
