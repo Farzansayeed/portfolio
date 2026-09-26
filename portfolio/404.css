@@ -205,9 +205,13 @@ h1 {
 .arrow.is-moving .line,
 .arrow.is-moving .head { stroke: var(--accent-strong); }
 
-/* escaping: tail-follow extraction drives dasharray/dashoffset from JS;
-   the line exits through the board edge, so nothing needs masking */
+/* traversal (escape + blocked approach + reversal): dasharray/dashoffset
+   and the head transform are driven from JS; nothing here needs masking.
+   Reversing keeps the accent so the retrace reads as one continuous run. */
 .arrow.is-moving .line { opacity: 1; }
+
+.arrow.is-reversing .line,
+.arrow.is-reversing .head { stroke: var(--accent); opacity: 0.9; }
 
 /* anticipation: the arrow loads backward a hair (JS sets the translate);
    the squash deforms ONLY the head chevron — the long tail never bends.
@@ -237,6 +241,18 @@ h1 {
 .arrow:focus-visible .line,
 .arrow:focus-visible .head { stroke: var(--accent-strong); }
 
+/* ---------- fx layer (victory confetti) ---------- */
+
+#fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  border-radius: 12px;
+}
+
 /* ---------- overlay ---------- */
 
 .overlay {
@@ -253,9 +269,29 @@ h1 {
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.38s var(--ease), visibility 0.38s;
+  z-index: 2;
 }
 
 .overlay.show { opacity: 1; visibility: visible; }
+
+/* banner entrance: scale 0 → 1.2 → 1.0 (~350ms, EaseOutBack), the children
+   staggered so the block pops as one piece. The backdrop stays still. */
+.overlay.show .overlay-kicker,
+.overlay.show .overlay-title,
+.overlay.show .overlay-sub,
+.overlay.show .overlay-actions {
+  animation: banner-in 350ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.overlay.show .overlay-title  { animation-delay: 60ms; }
+.overlay.show .overlay-sub    { animation-delay: 110ms; }
+.overlay.show .overlay-actions { animation-delay: 170ms; }
+
+@keyframes banner-in {
+  0%   { opacity: 0; transform: scale(0); }
+  62%  { opacity: 1; transform: scale(1.2); }
+  100% { opacity: 1; transform: scale(1); }
+}
 .overlay[hidden] { display: none; }
 .overlay.show[hidden] { display: grid; }
 
@@ -350,8 +386,12 @@ h1 {
 @media (prefers-reduced-motion: reduce) {
   .code, h1, .lede, .game { animation: none; }
   .heart, .btn, .arrow .line, .arrow .head, .overlay { transition: none; }
-  .arrow.shake { animation: none; }
   .heart.fracturing { animation: none; }
   .arrow.is-anticipating .head { animation: none; }
+  .overlay.show .overlay-kicker,
+  .overlay.show .overlay-title,
+  .overlay.show .overlay-sub,
+  .overlay.show .overlay-actions { animation: none; }
+  #fx { display: none; }
   .arrow { transform-box: view-box; }
 }

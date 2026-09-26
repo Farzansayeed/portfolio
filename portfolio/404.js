@@ -1,41 +1,46 @@
-// 404 — "Arrow Escape" · long-tail polyline edition · motion spec build
+// 404 — "Arrow Escape" · traversable trajectory edition
 //
 // Every arrow is ONE continuous axis-aligned polyline: a long tail with
 // 90° bends and a single arrowhead. The FINAL segment's direction is the
 // arrow's escape direction (bends in the tail don't change it). Tapping an
-// arrow whose corridor to the edge is clear extracts it; blocked taps cost
-// one of three hearts. Clear every arrow to escape the 404.
+// arrow whose corridor to the edge is clear sends the arrowhead travelling
+// through its actual winding route; blocked taps run the head forward until
+// it physically hits the blocker, flash, and retrace the exact path back.
+// Clear every arrow to escape the 404.
 //
-// MOTION LANGUAGE (translated from the Unity/DOTween spec to the web):
-//   ESCAPE   anticipation (60ms pullback + head-only squash) → EaseInCubic
-//            launch → dash-driven path extraction: the arrow slides out
-//            through its own channel, head leading, the long tail visibly
-//            following around every bend. Implemented on ONE extended path
-//            with stroke-dasharray/dashoffset — corners are preserved, the
-//            tail is never straightened, and nothing rigid-translates.
-//   COLLIDE  70ms EaseOutQuad thrust → damped recoil with small overshoot
-//            → decaying rotational shake → 1–2px board shake → #FF3344
-//            flash peaking at impact, decaying over ~200ms.
+// MOTION LANGUAGE (per the traversable-trajectory spec):
+//   TRAVERSE the arrowhead moves through the waypoint path at ~18 grid
+//            units/s, continuously — no teleporting between waypoints, no
+//            snapping at corners. The head's tangent rotates through each
+//            bend over ~40ms; the geometry itself stays rigid.
+//   COLLIDE  forward approach at traverse speed → stop 0.15 units short of
+//            the blocking geometry → impact flash to #FF3344 → brief hold
+//            → REVERSAL: the traversal parameter runs backward through the
+//            exact travelled arc (never a straight-line shortcut, never a
+//            group translate) at 1.4× speed with exponential deceleration,
+//            then the arrow restores to its original resting appearance.
+//   ESCAPE   traversal to the board boundary → EaseInCubic exit
+//            acceleration past the edge → 100ms fade → removed from the
+//            spatial state; dependencies recalculated.
 //   SPAWN    staggered scale-in, 15ms per arrow, restrained overshoot.
-//   HEARTS   burst → fracture/drop → settle into the empty slot (CSS).
-//   VICTORY  board settle pulse before the completion overlay.
+//   HEARTS   lost at impact; burst → fracture/drop → settle into the
+//            empty slot (CSS).
+//   VICTORY  waits for the final arrow's fade, board settle pulse, banner
+//            entrance (scale 0 → 1.2 → 1.0), quiet pooled canvas confetti.
 //
-// Architecture:
-//   LEVELS  frozen, solver-validated level data (offline-generated,
-//           frozen as literals — nothing random at runtime)
-//   LOGIC   pure functions over geometry: cell rasterization, corridor
-//           trace, blocking, backtracking solver with state-hashing
-//   STATE   gameStatus (READY/PLAYING/ANIMATING/LEVEL_COMPLETE/GAME_OVER),
-//           per-arrow animation state machine (IDLE/ANTICIPATING/ESCAPING/
-//           BLOCKED/RECOILING/ESCAPED), hearts, moves, epoch guard so no
-//           animation survives a restart
-//   RENDER  one SVG per level; each arrow = <g> with fat invisible hit
-//           path, thin visible line (the extended extraction path), and a
-//           head group wrapping the chevron (so the squash animation can
-//           deform the head without fighting the per-frame transform)
-//   UI      404 frame, hearts, status line, overlays, restart/home
+// Implementation notes:
+//   - The single traversal variable is s = arc distance travelled along
+//     the fixed extended path. Movement history is parametric (segment
+//     index + distance along segment are recovered from s in O(segments));
+//     reversal is simply s running from impactS back to 0 — the path is
+//     never re-sampled, never straightened, and the <g> never translates.
+//   - Visibility is one dash window [s, s + totalLen] on the extended
+//     path: the same update serves forward traversal, reversal, and exit.
+//   - States: IDLE MOVING COLLIDING REVERSING ESCAPING ESCAPED. An arrow
+//     remains an obstacle until it is fully ESCAPED (geometry cleared).
+//   - Epoch guard orphans every in-flight animation on restart/level change.
 //
-// Vanilla JS + SVG. No dependencies. Honors prefers-reduced-motion.
+// Vanilla JS + SVG + Canvas. No dependencies. Honors prefers-reduced-motion.
 (function () {
   "use strict";
 
@@ -97,31 +102,48 @@
   // MOTION CONSTANTS — the animation matrix (guidelines, not laws)
   // ============================================================
 
-  var ANTICIPATE_MS = 60;      // escape phase 1: load up
-  var RELEASE_MS = 80;         // pullback decay blended into the launch
-  var LAUNCH_BASE_MS = 340;    // escape base duration
-  var LAUNCH_PER_UNIT = 26;    // + path-length factor
-  var LAUNCH_EXTRA_MAX = 480;  // clamped so long paths stay snappy
-  var LAUNCH_MAX_MS = 950;
-
-  var THRUST_MS = 70;          // collision phase 1: EaseOutQuad bump
-  var RECOIL_MS = 330;         // collision phase 2: damped spring settle
-  var THRUST_UNITS = 0.28;     // forward thrust distance
-  var RECOIL_AMPL = 0.28;      // = THRUST_UNITS for velocity continuity
-  var RECOIL_OMEGA = 6.9;      // damped spring frequency (rad)
-  var RECOIL_DECAY = 4.5;      // damping
-  var RATTLE_DEG = 18;         // rotational shake amplitude (±peak ~7°)
+  var TRAVERSE_SPEED = 18;     // logical grid units / second (internal traversal)
+  var CORNER_TURN_MS = 40;     // head tangent interpolation across a bend
+  var IMPACT_GAP = 0.15;       // stop this far short of blocking geometry
+  var IMPACT_MIN_MS = 80;      // shortest forward approach (near-adjacent blocker)
+  var IMPACT_HOLD_MS = 50;     // freeze at the impact point before reversing
+  var THRUST_MS = 70;          // small impact bump into the blocker
+  var THRUST_UNITS = 0.08;     //   (0.15 − 0.08 keeps a hair of daylight:
+                               //    contact read, never overlap)
+  var REVERSE_SPEED_MULT = 1.4;// reversal speed vs traverse speed
+  var REVERSE_DECEL = 1.2;     // exponential deceleration during reversal
+  var REVERSE_TAIL_V = 0.45;   // fraction of start speed held until arrival
+  var REVERSE_MIN_MS = 140;    // floor so short retraces still read as motion
   var FLASH_PEAK_MS = 140;     // red flash holds past impact, then decays
+  var EXIT_FADE_MS = 100;      // fade of whatever tail remains mid-exit
+  var EXIT_AVG_MULT = 1.6;     // exit average speed vs traverse speed
+  var EXIT_BLEND = 0.625;      // linear/cubic blend: accelerating, yet joins
+                               // the boundary exactly at the traverse speed
+  var EXIT_MS_MIN = 110;
+  var EXIT_MS_MAX = 620;
 
+  var ANTICIPATE_MS = 60;      // load-up before any run
+  var RELEASE_MS = 80;         // pullback decay blended into the launch
+  var PULLBACK_UNITS = 0.12;   // anticipation distance
   var SPAWN_STAGGER_MS = 15;   // per-arrow spawn delay
   var SPAWN_DUR_MS = 300;
   var HEART_BREAK_MS = 480;    // CSS animation (see 404.css)
   var VICTORY_SETTLE_MS = 560; // board pulse before the overlay
   var VICTORY_HOLD_MS = 620;
+  var VICTORY_WAIT_MS = 160;   // grace after the final fade before victory
 
-  var PULLBACK_UNITS = 0.12;   // anticipation distance
   var EDGE_MARGIN = 0.3;       // keep strokes fully past the board edge
   var HINT_PULSE_MS = 1000;    // hint loop, EaseInOutSine scale 1.00 → 1.14
+
+  // confetti — pooled canvas particles, deliberately quiet
+  var CONFETTI_POOL = 160;
+  var CONFETTI_PER_EMITTER = 34;
+  var CONFETTI_LIFE_MIN = 1.2; // seconds
+  var CONFETTI_LIFE_MAX = 2.2;
+  var CONFETTI_SPEED_MIN = 14; // units / s (1 unit = board height / 14)
+  var CONFETTI_SPEED_MAX = 22;
+  var CONFETTI_GRAVITY = 1.15; // units / s²
+  var CONFETTI_DRAG = 1.8;     // exponential drag / s
 
   // ============================================================
   // LOGIC — pure geometry, no DOM
@@ -171,18 +193,34 @@
     return cells;
   }
 
-  function isBlocked(a, live, W, H) {
+  function occupancyOf(live, exclude) {
     var occ = {};
     for (var i = 0; i < live.length; i++) {
-      if (live[i] === a || live[i].state === "ESCAPED") continue;
-      var cs = cellsOf(live[i]);
+      var o = live[i];
+      if (o === exclude || o.state === "ESCAPED") continue;
+      var cs = cellsOf(o);
       for (var k in cs) occ[k] = true;
     }
+    return occ;
+  }
+
+  function isBlocked(a, live, W, H) {
+    return blockedDistance(a, occupancyOf(live, a), W, H) < Infinity;
+  }
+
+  // Distance (in arc units along the extended path) the head can travel
+  // before reaching the first blocking point, minus the impact gap —
+  // Infinity when the corridor to the edge is clear. Obstacles = points of
+  // every other arrow not yet ESCAPED. corridor[k] sits k+1 units beyond
+  // the head, hence the +1.
+  function blockedDistance(a, occ, W, H) {
     var cor = corridorOf(a, W, H);
     for (var j = 0; j < cor.length; j += 2) {
-      if (occ[cor[j] + "," + cor[j + 1]]) return true;
+      if (occ[cor[j] + "," + cor[j + 1]]) {
+        return Math.max(0, j / 2 + 1 - IMPACT_GAP);
+      }
     }
-    return false;
+    return Infinity;
   }
 
   // Backtracking solver with state-hashing — validates every level at load.
@@ -226,6 +264,12 @@
   function easeOutQuad(u) { return 1 - (1 - u) * (1 - u); }
   function easeInCubic(u) { return u * u * u; }
 
+  // shortest-path angular interpolation (degrees)
+  function angLerp(a, b, u) {
+    var d = ((b - a) % 360 + 540) % 360 - 180;
+    return a + d * u;
+  }
+
   function polyLen(pts) {
     var L = 0;
     for (var i = 0; i < pts.length - 1; i++) {
@@ -251,6 +295,7 @@
   // ============================================================
 
   var svg = document.getElementById("board");
+  var fxCanvas = document.getElementById("fx");
   var statusEl = document.getElementById("status");
   var heartsEl = document.getElementById("hearts");
   var movesEl = document.getElementById("moves");
@@ -307,6 +352,59 @@
       (blocked ? "Path blocked." : "Path clear. Activate to escape.");
   }
 
+  // ---- Path parameterization (the traversal core) ----
+  // The extended path = the arrow's own polyline plus one straight run-out
+  // segment past the head. Segment lengths give an exact arc-length map:
+  // s (arc units) → {x, y, tangent angle}. This IS the movement history:
+  // segment index + distance-along-segment are recovered from s directly.
+
+  function buildGeom(a, L) {
+    var pts = a.pts.slice();
+    var n = pts.length;
+    var hx = pts[n - 1][0], hy = pts[n - 1][1];
+    var d = DIRV[a.dir];
+    var headGap =
+      a.dir === "R" ? L.W - hx :
+      a.dir === "L" ? hx + 1 :
+      a.dir === "D" ? L.H - hy : hy + 1;
+    var runOut = headGap + 1.2 + EDGE_MARGIN;
+    pts.push([hx + d[0] * runOut, hy + d[1] * runOut]);
+
+    var segLens = [], segAcc = [0], total = 0;
+    for (var i = 0; i < pts.length - 1; i++) {
+      var len = Math.abs(pts[i + 1][0] - pts[i][0]) + Math.abs(pts[i + 1][1] - pts[i][1]);
+      segLens.push(len);
+      total += len;
+      segAcc.push(total);
+    }
+    return {
+      totalLen: total - runOut,       // arc length of the arrow's own body
+      extLen: total,                  // including the run-out past the edge
+      headGap: headGap,
+      segLens: segLens,
+      segAcc: segAcc,
+      pts: pts,
+      runOut: runOut,
+    };
+  }
+
+  function pathTo(a, s) {
+    var g = a.geom, pts = g.pts;
+    var i = 0, last = g.segLens.length - 1;
+    while (i < last && s > g.segAcc[i + 1]) i++;
+    var ls = s - g.segAcc[i];
+    var x1 = pts[i][0], y1 = pts[i][1];
+    var ux = 0, uy = 0, len = g.segLens[i];
+    if (len > 0) { ux = (pts[i + 1][0] - x1) / len; uy = (pts[i + 1][1] - y1) / len; }
+    return {
+      x: x1 + ux * ls,
+      y: y1 + uy * ls,
+      ang: Math.atan2(uy, ux) * 180 / Math.PI,
+    };
+  }
+
+  // ---- Board build ----
+
   function buildBoard() {
     var L = LEVELS[game.levelIndex];
     game.W = L.W;
@@ -320,11 +418,13 @@
         id: src.id,
         pts: src.pts.map(function (p) { return [p[0], p[1]]; }),
         dir: dirOf(src),
-        state: "IDLE",   // IDLE | ANTICIPATING | ESCAPING | BLOCKED | RECOILING | ESCAPED
+        state: "IDLE", // IDLE | MOVING | COLLIDING | REVERSING | ESCAPING | ESCAPED
         el: null,
         geom: null,
         centroid: null,
         spawnIndex: 0,
+        runS: 0,       // current traversal position (arc units along ext path)
+        ha: null,      // per-arrow head-angle smoothing state
       };
     });
 
@@ -342,22 +442,12 @@
     sorted.forEach(function (a, spawnIdx) {
       a.spawnIndex = spawnIdx;
 
-      // The visible line is the arrow's path EXTENDED past the head through
-      // the escape corridor. Extraction then runs entirely on this one path
-      // via dasharray/dashoffset: corners preserved, tail follows the head,
-      // and the exited portion slides off through the edge.
-      var n = a.pts.length;
-      var hx = a.pts[n - 1][0], hy = a.pts[n - 1][1];
-      var d = DIRV[a.dir];
-      var headGap =
-        a.dir === "R" ? L.W - hx :
-        a.dir === "L" ? hx + 1 :
-        a.dir === "D" ? L.H - hy : hy + 1;
-      var totalLen = polyLen(a.pts);
-      var runOut = headGap + 1.2 + EDGE_MARGIN;
-      var ext = [hx + d[0] * runOut, hy + d[1] * runOut];
-      var extD = pathD(a.pts) + " L " + ext[0] + " " + ext[1];
-      a.geom = { totalLen: totalLen, headGap: headGap, extLen: totalLen + runOut };
+      // The visible line is the FULL extended path; a dash window shows
+      // exactly the arrow's own arc length at rest. Traversal slides that
+      // window along the path — forward, backward (reversal), and out
+      // (exit) are all the same mechanism driven by one variable, s.
+      var aGeom = buildGeom(a, L);
+      a.geom = aGeom;
       a.centroid = bboxCenter(a.pts);
 
       var g = el("g", { class: "arrow", "data-id": a.id, tabindex: "0", role: "button" });
@@ -371,7 +461,7 @@
         "stroke-linejoin": "round",
       });
       var line = el("path", {
-        d: extD,
+        d: pathD(aGeom.pts),
         class: "line",
         fill: "none",
         "stroke-width": "0.085",
@@ -381,9 +471,10 @@
       // head group carries the placement transform; the inner path is free
       // for the CSS squash animation (anticipation deforms ONLY the head —
       // the long tail stays geometrically coherent)
+      var n = a.pts.length;
       var headG = el("g", {
         class: "head-g",
-        transform: "translate(" + hx + " " + hy + ") rotate(" + DIR_ANGLE[a.dir] + ")",
+        transform: "translate(" + a.pts[n - 1][0] + " " + a.pts[n - 1][1] + ") rotate(" + DIR_ANGLE[a.dir] + ")",
       });
       var head = el("path", {
         d: "M -0.3 -0.3 L 0 0 L -0.3 0.3",
@@ -395,10 +486,9 @@
       });
       headG.appendChild(head);
 
-      // resting state: only the arrow itself is visible — the dash window
-      // covers exactly the arrow's own arc length, so the off-board
-      // extension stays invisible until extraction consumes it
-      line.setAttribute("stroke-dasharray", totalLen + " " + (a.geom.extLen + 60));
+      // resting state: the dash window covers exactly the arrow's own arc
+      // length — the off-board extension stays invisible until the run
+      line.setAttribute("stroke-dasharray", aGeom.totalLen + " " + (aGeom.extLen + 60));
       line.setAttribute("stroke-dashoffset", "0");
 
       g.appendChild(hit);
@@ -448,6 +538,7 @@
     game.arrows.forEach(function (a) { if (a.state !== "ESCAPED") order.push(a); });
 
     order.forEach(function (a) {
+      if (a.state !== "IDLE") return; // mid-run arrows keep their run classes
       var blocked = isBlocked(a, game.arrows, game.W, game.H);
       a.el.classList.toggle("is-blocked", blocked);
       a.el.classList.toggle("is-available", !blocked);
@@ -457,7 +548,8 @@
       a.el.setAttribute("aria-label", describe(a, idx));
     });
 
-    var free = order.filter(function (a) {
+    var idle = order.filter(function (a) { return a.state === "IDLE"; });
+    var free = idle.filter(function (a) {
       return !isBlocked(a, game.arrows, game.W, game.H);
     }).length;
     var left = order.length;
@@ -523,24 +615,132 @@
   }
 
   // ============================================================
-  // INTERACTION — per-arrow animation state machine
+  // TRAVERSAL ENGINE — shared run mechanics
+  // ============================================================
+
+  // Place the arrow for traversal position s: dash window [s, s+totalLen],
+  // head riding the front at s + totalLen with corner-smoothed rotation.
+  // One mechanism serves forward travel, reversal, and exit.
+  function placeAt(a, s, now) {
+    var g = a.geom, line = a.el.querySelector(".line"), headG = a.el.querySelector(".head-g");
+    a.runS = s;
+
+    var vis = Math.min(g.totalLen, g.extLen - s);
+    if (vis <= 0.01) {
+      line.style.opacity = "0";
+    } else {
+      line.style.opacity = "";
+      line.setAttribute("stroke-dasharray", vis + " " + (g.extLen + 60));
+      line.setAttribute("stroke-dashoffset", String(-s));
+    }
+
+    var hs = s + g.totalLen;
+    if (hs > g.extLen - 0.2) {
+      headG.style.display = "none";
+      return;
+    }
+    headG.style.display = "";
+    var p = pathTo(a, hs);
+
+    // tangent rotation: ease toward the segment angle over ~40ms so bends
+    // read as turns, never snaps
+    var ha = a.ha || (a.ha = { shown: headAngle0(a), from: 0, to: 0, at: -1e9 });
+    if (p.ang !== ha.to) {
+      ha.from = ha.shown;
+      ha.to = p.ang;
+      ha.at = now;
+    }
+    var u = clamp((now - ha.at) / CORNER_TURN_MS, 0, 1);
+    ha.shown = angLerp(ha.from, ha.to, easeOutQuad(u));
+    headG.setAttribute("transform",
+      "translate(" + p.x + " " + p.y + ") rotate(" + ha.shown + ")");
+  }
+
+  function headAngle0(a) { return DIR_ANGLE[a.dir]; }
+
+  function resetHead(a) {
+    var n = a.pts.length;
+    a.ha = null;
+    var headG = a.el.querySelector(".head-g");
+    headG.style.display = "";
+    headG.setAttribute("transform",
+      "translate(" + a.pts[n - 1][0] + " " + a.pts[n - 1][1] + ") rotate(" + DIR_ANGLE[a.dir] + ")");
+  }
+
+  function restoreIdle(a) {
+    var line = a.el.querySelector(".line");
+    line.style.opacity = "";
+    line.setAttribute("stroke-dasharray", a.geom.totalLen + " " + (a.geom.extLen + 60));
+    line.setAttribute("stroke-dashoffset", "0");
+    a.el.removeAttribute("transform");
+    a.el.style.opacity = "";
+    resetHead(a);
+    a.runS = 0;
+    a.state = "IDLE";
+    // is-anticipating is dropped only here: its 240ms squash has fully run
+    // by the time a blocked approach + reversal completes, so removing it
+    // can't snap the chevron — and the next tap gets a fresh animation.
+    a.el.classList.remove("is-moving", "is-hit", "is-reversing", "is-anticipating");
+    refreshStates();
+  }
+
+  // Anticipation: whole-arrow pullback + head squash (CSS), shared by both
+  // run types. Calls begin() when the load-up completes.
+  function anticipate(a, myEpoch, begin) {
+    a.el.classList.add("is-moving", "is-anticipating");
+    a.el.setAttribute("aria-disabled", "true");
+    a.el.classList.remove("is-available", "is-blocked");
+
+    if (reduced) { begin(); return; }
+
+    var g = a.el;
+    var d = DIRV[a.dir];
+    var start = performance.now();
+
+    function pull(now) {
+      if (myEpoch !== game.epoch) return;
+      var t = now - start;
+      if (t < ANTICIPATE_MS) {
+        var p = PULLBACK_UNITS * easeOutQuad(t / ANTICIPATE_MS);
+        g.setAttribute("transform", "translate(" + (-p * d[0]) + " " + (-p * d[1]) + ")");
+        requestAnimationFrame(pull);
+      } else {
+        begin(); // traversal keeps blending the pullback out (RELEASE_MS)
+      }
+    }
+    requestAnimationFrame(pull);
+  }
+
+  // Decay the anticipation pullback during the first moments of travel.
+  function releasePullback(a, elapsedMs) {
+    if (reduced) return;
+    var rel = 1 - clamp(elapsedMs / RELEASE_MS, 0, 1);
+    var d = DIRV[a.dir];
+    a.el.setAttribute("transform",
+      "translate(" + (-PULLBACK_UNITS * rel * d[0]) + " " + (-PULLBACK_UNITS * rel * d[1]) + ")");
+    if (rel <= 0) a.el.removeAttribute("transform");
+  }
+
+  // ============================================================
+  // INTERACTION
   // ============================================================
 
   function onActivate(a) {
     if (game.status !== "PLAYING" && game.status !== "READY") return;
-    if (a.state !== "IDLE") return; // ESCAPING/RECOILING ignore input until done
+    if (a.state !== "IDLE") return; // mid-run arrows ignore input until done
+    if (game.hearts <= 0) return;   // game over already locked in
     stopHint(); // hint stops the moment its arrow (or any arrow) is chosen
 
     if (isBlocked(a, game.arrows, game.W, game.H)) {
-      blockedTap(a);
+      blockedRun(a);
       return;
     }
-    extract(a);
+    escapeRun(a);
   }
 
-  // ---- COLLISION: thrust → recoil → settle (spec §12–17) ----
+  // ---- BLOCKED RUN: approach → impact → parametric reversal ----
 
-  function blockedTap(a) {
+  function loseHeart() {
     game.hearts--;
     // the heart that just died fractures (CSS: burst → breakup → drop)
     if (heartsEl) {
@@ -550,33 +750,65 @@
     updateHud();
     setStatus("Blocked — the way out isn't clear. −1 heart");
     if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) {} }
+  }
 
+  function blockedRun(a) {
     var myEpoch = game.epoch;
-    var g = a.el;
-    var d = DIRV[a.dir];
-    var c = a.centroid;
 
-    function done() {
-      if (myEpoch !== game.epoch) return;
-      a.state = "IDLE";
-      g.removeAttribute("transform");
+    if (reduced) {
+      // reduced motion: no travel, no reversal — impact flash + heart cost
+      a.state = "COLLIDING";
+      a.el.classList.add("is-hit");
+      loseHeart();
+      window.setTimeout(function () {
+        if (myEpoch !== game.epoch) return;
+        a.el.classList.remove("is-hit");
+        restoreIdle(a);
+        afterHeartLoss();
+      }, 200);
+      return;
     }
 
-    a.state = "BLOCKED";
-    g.classList.add("is-hit");
-    if (reduced) {
-      // minimal response: color flash only, no motion
+    var occ = occupancyOf(game.arrows, a);
+    var stopS = blockedDistance(a, occ, game.W, game.H);
+    if (stopS === Infinity) { escapeRun(a); return; } // state raced; escape instead
+
+    a.state = "MOVING";
+    a.el.classList.remove("is-hit", "is-reversing");
+
+    var approachMs = Math.max(IMPACT_MIN_MS, (stopS / TRAVERSE_SPEED) * 1000);
+    var approachStart = 0;
+
+    anticipate(a, myEpoch, function begin() {
+      if (myEpoch !== game.epoch) return;
+      approachStart = performance.now();
+      requestAnimationFrame(approach);
+    });
+
+    // Phase 1a — forward approach at constant traverse speed. The dash
+    // window slides forward; the head leads through every bend.
+    function approach(now) {
+      if (myEpoch !== game.epoch) return;
+      var t = now - approachStart;
+      releasePullback(a, t);
+      var u = clamp(t / approachMs, 0, 1);
+      placeAt(a, stopS * u, now);
+      if (u < 1) { requestAnimationFrame(approach); return; }
+
+      // Phase 1b — impact: thrust bump, red flash, brief hold.
+      impact(now);
+    }
+
+    function impact(now) {
+      if (myEpoch !== game.epoch) return;
+      a.state = "COLLIDING";
+      loseHeart();
+
+      a.el.classList.add("is-hit");
       window.setTimeout(function () {
-        g.classList.remove("is-hit");
-        done();
-      }, 200);
-    } else {
-      // flash peaks at impact, decays via the base stroke transition
-      window.setTimeout(function () {
-        if (myEpoch === game.epoch) g.classList.remove("is-hit");
+        if (myEpoch === game.epoch) a.el.classList.remove("is-hit");
       }, FLASH_PEAK_MS);
 
-      // screen shake: 1–2px on the board frame only, ~110ms
       if (boardFrame) boardFrame.animate(
         [
           { transform: "translate(0px, 0px)" },
@@ -587,34 +819,62 @@
         ],
         { duration: 110, easing: "ease-out" });
 
-      var start = performance.now();
-      function frame(now) {
-        if (myEpoch !== game.epoch) return; // restart orphans this animation
-        var t = now - start;
-        var off, rot;
-        if (t <= THRUST_MS) {
-          // EaseOutQuad thrust toward the blocker
-          off = THRUST_UNITS * easeOutQuad(t / THRUST_MS);
-          rot = 0;
-        } else if (t < THRUST_MS + RECOIL_MS) {
-          // damped spring: back past origin, small overshoot, settle
-          a.state = "RECOILING";
-          var u = (t - THRUST_MS) / RECOIL_MS;
-          off = RECOIL_AMPL * Math.exp(-RECOIL_DECAY * u) * Math.cos(RECOIL_OMEGA * u);
-          rot = RATTLE_DEG * Math.exp(-RECOIL_DECAY * u) * Math.sin(RECOIL_OMEGA * u);
-        } else {
-          done();
+      // small thrust bump into the blocker (EaseOutQuad), then hold
+      var d = DIRV[a.dir];
+      var thrustStart = performance.now();
+      function bump(now2) {
+        if (myEpoch !== game.epoch) return;
+        var t2 = now2 - thrustStart;
+        if (t2 < THRUST_MS) {
+          var off = THRUST_UNITS * easeOutQuad(t2 / THRUST_MS);
+          a.el.setAttribute("transform", "translate(" + (off * d[0]) + " " + (off * d[1]) + ")");
+          requestAnimationFrame(bump);
           return;
         }
-        g.setAttribute("transform",
-          "translate(" + (off * d[0]) + " " + (off * d[1]) + ") " +
-          "rotate(" + rot + " " + c[0] + " " + c[1] + ")");
-        requestAnimationFrame(frame);
+        a.el.removeAttribute("transform");
+        window.setTimeout(function () {
+          if (myEpoch === game.epoch) reverse(performance.now());
+        }, IMPACT_HOLD_MS);
+      }
+      requestAnimationFrame(bump);
+    }
+
+    // Phase 2 — REVERSAL: the traversal parameter runs backward through the
+    // exact travelled arc (s: stopS → 0). Never a straight-line shortcut,
+    // never a group translate. Velocity starts at 1.4× traverse speed and
+    // decays exponentially toward a floor, so the arrow glides home and
+    // settles rather than slamming to a halt.
+    function reverse(now) {
+      if (myEpoch !== game.epoch) return;
+      a.state = "REVERSING";
+      a.el.classList.add("is-reversing");
+
+      var v1 = TRAVERSE_SPEED * REVERSE_SPEED_MULT;
+      var vEnd = Math.max(6, v1 * REVERSE_TAIL_V);
+      var tNat = reverseArrivalTime(stopS, v1, vEnd, REVERSE_DECEL);
+      var T = Math.max(tNat, REVERSE_MIN_MS / 1000); // floor for tiny retraces
+      var revStart = performance.now();
+
+      function frame(now2) {
+        if (myEpoch !== game.epoch) return;
+        var el2 = now2 - revStart;
+        releasePullback(a, approachMs + el2); // pullback fully released by now
+        // time-remap (monotone composition) keeps the profile monotonic
+        var t = Math.min(el2 / 1000 * (tNat / T), tNat);
+        var d = vEnd * t + (v1 - vEnd) * (1 - Math.exp(-REVERSE_DECEL * t)) / REVERSE_DECEL;
+        placeAt(a, Math.max(0, stopS - d), now2);
+        if (el2 < T * 1000) { requestAnimationFrame(frame); return; }
+
+        // back home — restore the resting appearance and availability
+        restoreIdle(a);
+        afterHeartLoss();
       }
       requestAnimationFrame(frame);
     }
+  }
 
-    if (game.hearts <= 0) {
+  function afterHeartLoss() {
+    if (game.hearts <= 0 && game.status !== "GAME_OVER") {
       game.status = "GAME_OVER";
       var ep = game.epoch;
       window.setTimeout(function () {
@@ -624,24 +884,36 @@
     }
   }
 
-  // ---- ESCAPE: anticipation → launch → tail-follow extraction ----
+  // Arrival time for the reversal velocity profile: v(t) = vEnd +
+  // (v1 − vEnd)·e^(−k·t); distance D(t) = vEnd·t + (v1 − vEnd)(1−e^(−k·t))/k.
+  // D is strictly monotone, so bisection lands on t* where D(t*) = total.
+  function reverseArrivalTime(total, v1, vEnd, k) {
+    var lo = 0, hi = total / vEnd + 1;
+    for (var i = 0; i < 48; i++) {
+      var mid = (lo + hi) / 2;
+      var d = vEnd * mid + (v1 - vEnd) * (1 - Math.exp(-k * mid)) / k;
+      if (d < total) lo = mid; else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
 
-  function extract(a) {
+  // ---- ESCAPE RUN: traversal → boundary → exit acceleration → fade ----
+
+  function escapeRun(a) {
     game.status = "ANIMATING";
-    a.state = "ANTICIPATING";
-    a.el.classList.remove("is-available", "is-blocked");
-    a.el.classList.add("is-moving", "is-anticipating");
-    a.el.setAttribute("aria-disabled", "true");
-
     var myEpoch = game.epoch;
-    var g = a.el;
-    var d = DIRV[a.dir];
-    var geom = a.geom;
-    var line = g.querySelector(".line");
-    var headG = g.querySelector(".head-g");
-    var angle = DIR_ANGLE[a.dir];
+    var g = a.geom;
+    var corridorEnd = g.headGap; // s at which the head reaches the boundary
+    // accelerated slide that carries the whole body past the edge, ending
+    // ~0.9 units of tail short — exactly the nub the 100ms fade retires
+    var exitDist = g.totalLen + 0.6;
 
-    function finish() {
+    a.state = "MOVING";
+
+    var finishGuard = false;
+    function finishEscape() {
+      if (finishGuard) return;
+      finishGuard = true;
       if (myEpoch !== game.epoch) return; // restart happened mid-flight
       a.state = "ESCAPED";
       if (a.el) a.el.remove();
@@ -651,88 +923,192 @@
 
       var left = game.arrows.filter(function (x) { return x.state !== "ESCAPED"; }).length;
       if (left === 0) {
-        win();
+        // victory waits until the final arrow's fade has fully finished
+        var ep = game.epoch;
+        window.setTimeout(function () {
+          if (ep !== game.epoch) return;
+          win();
+        }, reduced ? 80 : VICTORY_WAIT_MS);
       } else {
         refreshStates();
       }
     }
 
     if (reduced) {
-      // no anticipation, no extraction choreography — short fade, still ordered
+      // no traversal choreography — short fade, still ordered
       a.state = "ESCAPING";
       a.el.style.opacity = "0";
       window.setTimeout(function () {
-        if (myEpoch === game.epoch) finish();
+        if (myEpoch === game.epoch) finishEscape();
       }, 160);
-    } else {
-
-    // duration scales with real path travel, clamped so long tails stay snappy
-    var dur = Math.min(LAUNCH_MAX_MS,
-      LAUNCH_BASE_MS + clamp((geom.totalLen + geom.headGap) * LAUNCH_PER_UNIT, 0, LAUNCH_EXTRA_MAX));
-
-    var start = performance.now();
-    var launched = false;
-
-    function frame(now) {
-      if (myEpoch !== game.epoch) return;
-      var t = now - start;
-
-      // Phase 1 — anticipation: the whole arrow loads backward a hair; the
-      // squash is head-only (CSS), the tail never deforms.
-      if (t < ANTICIPATE_MS) {
-        var pull = PULLBACK_UNITS * easeOutQuad(t / ANTICIPATE_MS);
-        g.setAttribute("transform", "translate(" + (-pull * d[0]) + " " + (-pull * d[1]) + ")");
-        requestAnimationFrame(frame);
-        return;
-      }
-
-      // Phase 2 — launch: EaseInCubic progress along the extended path.
-      // (is-anticipating stays: its squash animation self-completes and
-      // normalizes the head back to scale 1 — removing it here would snap.)
-      if (!launched) {
-        launched = true;
-        a.state = "ESCAPING";
-      }
-      var lt = Math.min(1, (t - ANTICIPATE_MS) / dur);
-      var L = easeInCubic(lt) * geom.extLen; // extraction front, in arc units
-
-      // release the pullback during the first moments of the launch
-      var rel = 1 - clamp((t - ANTICIPATE_MS) / RELEASE_MS, 0, 1);
-      var pb = PULLBACK_UNITS * rel;
-      g.setAttribute("transform", "translate(" + (-pb * d[0]) + " " + (-pb * d[1]) + ")");
-
-      // Path extraction: the dash window [L, L+vis] slides along the
-      // extended path. The tail end advances through the bends (corners
-      // intact) while the front is consumed past the board edge — the long
-      // tail visibly follows the head out. No rigid translate of the shape.
-      var vis = Math.min(geom.totalLen, geom.extLen - L);
-      if (vis <= 0.01) {
-        line.style.opacity = "0";
-      } else {
-        line.style.opacity = "";
-        line.setAttribute("stroke-dasharray", vis + " " + (geom.extLen + 60));
-        line.setAttribute("stroke-dashoffset", String(-L));
-      }
-
-      // the chevron rides the front and dies past the viewBox edge
-      if (L < geom.headGap + 0.75) {
-        var p = line.getPointAtLength(Math.min(geom.totalLen + L, geom.extLen - 0.01));
-        headG.setAttribute("transform", "translate(" + p.x + " " + p.y + ") rotate(" + angle + ")");
-      } else {
-        headG.style.display = "none";
-      }
-
-      if (vis <= 0.01) {
-        finish();
-        return;
-      }
-      if (lt < 1) {
-        requestAnimationFrame(frame);
-      } else {
-        finish();
-      }
+      return;
     }
-    requestAnimationFrame(frame);
+
+    anticipate(a, myEpoch, function begin() {
+      if (myEpoch !== game.epoch) return;
+      var start = performance.now();
+      var phase = "TRAVERSE"; // TRAVERSE → EXIT → FADE
+      var exitStart = 0;
+      var fadeStart = 0;
+      var exitMs = clamp(exitDist / (TRAVERSE_SPEED * EXIT_AVG_MULT) * 1000,
+        EXIT_MS_MIN, EXIT_MS_MAX);
+
+      function frame(now) {
+        if (myEpoch !== game.epoch) return;
+        var t = now - start;
+
+        if (phase === "TRAVERSE") {
+          releasePullback(a, t);
+          var s = Math.min(TRAVERSE_SPEED * (t / 1000), corridorEnd);
+          placeAt(a, s, now);
+          if (s >= corridorEnd) {
+            phase = "EXIT";
+            a.state = "ESCAPING"; // no longer returnable; still an obstacle
+            exitStart = now;      // until the geometry has cleared
+          }
+          requestAnimationFrame(frame);
+          return;
+        }
+
+        if (phase === "EXIT") {
+          // EaseInCubic-style acceleration out through the run-out, tail
+          // following around every bend. Blended with a linear term so the
+          // curve joins the boundary at most of the traverse speed instead
+          // of hitching to zero.
+          var u = clamp((now - exitStart) / exitMs, 0, 1);
+          var f = (1 - EXIT_BLEND) * easeInCubic(u) + EXIT_BLEND * u;
+          placeAt(a, corridorEnd + exitDist * f, now);
+          if (u >= 1) {
+            phase = "FADE";
+            fadeStart = now;
+          }
+          requestAnimationFrame(frame);
+          return;
+        }
+
+        // FADE — ~100ms opacity fade; the geometry is already past the edge
+        var fu = clamp((now - fadeStart) / EXIT_FADE_MS, 0, 1);
+        a.el.style.opacity = String(1 - fu);
+        if (fu < 1) { requestAnimationFrame(frame); return; }
+        finishEscape();
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  // ============================================================
+  // CONFETTI — pooled canvas particles (victory only, deliberately quiet)
+  // ============================================================
+
+  var fx = {
+    running: false, pool: [], raf: 0, ctx: null,
+    unitPx: 10, last: 0, epoch: 0,
+  };
+
+  function fxInit() {
+    if (!fxCanvas || !boardFrame) return false;
+    if (fx.pool.length) return true;
+    fx.ctx = fxCanvas.getContext("2d");
+    var colors = ["#d3a95c", "#e6c483", "#f4f2ee"];
+    for (var i = 0; i < CONFETTI_POOL; i++) {
+      fx.pool.push({ alive: false, x: 0, y: 0, vx: 0, vy: 0, rot: 0, rv: 0, w: 0, h: 0, life: 0, age: 0, color: colors[i % colors.length] });
+    }
+    return true;
+  }
+
+  function fxResize() {
+    if (!fxCanvas) return;
+    var r = boardFrame.getBoundingClientRect();
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    fxCanvas.width = Math.max(1, Math.round(r.width * dpr));
+    fxCanvas.height = Math.max(1, Math.round(r.height * dpr));
+    fx.unitPx = r.height / 14; // 1 logical unit ≈ board scale
+    fx.dpr = dpr;
+    fx.ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in CSS px
+  }
+
+  function fxLaunch() {
+    if (reduced || !fxInit()) return;
+    fxResize();
+    fx.epoch = game.epoch;
+    fx.last = performance.now();
+    var w = fxCanvas.width / (fx.dpr || 1);
+    var h = fxCanvas.height / (fx.dpr || 1);
+    var emitters = [
+      { x: w * 0.12, y: h + 6, delay: 0 },
+      { x: w * 0.88, y: h + 6, delay: 120 },
+    ];
+    emitters.forEach(function (em) {
+      var ep = game.epoch;
+      window.setTimeout(function () {
+        if (ep !== game.epoch) return;
+        var spawned = 0;
+        for (var i = 0; i < fx.pool.length && spawned < CONFETTI_PER_EMITTER; i++) {
+          var p = fx.pool[i];
+          if (p.alive) continue;
+          var speed = (CONFETTI_SPEED_MIN + Math.random() * (CONFETTI_SPEED_MAX - CONFETTI_SPEED_MIN)) * fx.unitPx;
+          var ang = (-90 + (Math.random() * 110 - 55)) * Math.PI / 180; // ±55° upward fan
+          p.alive = true;
+          p.x = em.x; p.y = em.y;
+          p.vx = Math.cos(ang) * speed;
+          p.vy = Math.sin(ang) * speed;
+          p.rot = Math.random() * Math.PI * 2;
+          p.rv = (Math.random() * 7 - 3.5);
+          p.w = (4 + Math.random() * 4);
+          p.h = 2 + Math.random() * 1.5;
+          p.life = CONFETTI_LIFE_MIN + Math.random() * (CONFETTI_LIFE_MAX - CONFETTI_LIFE_MIN);
+          p.age = 0;
+          spawned++;
+        }
+        if (!fx.running) { fx.running = true; fx.last = performance.now(); fx.raf = requestAnimationFrame(fxFrame); }
+      }, em.delay);
+    });
+  }
+
+  function fxFrame(now) {
+    if (!fx.running) return;
+    var dt = Math.min(0.05, (now - fx.last) / 1000);
+    fx.last = now;
+    var ctx = fx.ctx;
+    var w = fxCanvas.width / fx.dpr, h = fxCanvas.height / fx.dpr;
+    var g = CONFETTI_GRAVITY * fx.unitPx;
+    var drag = Math.exp(-CONFETTI_DRAG * dt);
+    ctx.clearRect(0, 0, w, h);
+    var anyAlive = false;
+
+    for (var i = 0; i < fx.pool.length; i++) {
+      var p = fx.pool[i];
+      if (!p.alive) continue;
+      p.age += dt;
+      if (p.age >= p.life) { p.alive = false; continue; }
+      p.vy += g * dt;
+      p.vx *= drag; p.vy *= drag;
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.rot += p.rv * dt;
+      var fade = 1 - easeInCubic(p.age / p.life);
+      ctx.save();
+      ctx.globalAlpha = 0.85 * fade;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+      anyAlive = true;
+    }
+
+    if (anyAlive && fx.epoch === game.epoch) {
+      fx.raf = requestAnimationFrame(fxFrame);
+    } else {
+      fx.running = false;
+      ctx.clearRect(0, 0, w, h);
+    }
+  }
+
+  function fxStop() {
+    fx.running = false;
+    if (fx.raf) cancelAnimationFrame(fx.raf);
+    if (fx.ctx && fxCanvas) {
+      fx.ctx.clearRect(0, 0, fxCanvas.width / (fx.dpr || 1), fxCanvas.height / (fx.dpr || 1));
     }
   }
 
@@ -748,6 +1124,9 @@
     primaryBtn.textContent = primaryLabel;
     primaryBtn.onclick = primaryAction;
     homeLink.hidden = !showHome;
+    overlayEl.classList.remove("show");
+    // restart the banner entrance (scale 0 → 1.2 → 1.0) on every show
+    void overlayEl.offsetWidth;
     overlayEl.classList.add("show");
     primaryBtn.focus();
   }
@@ -757,8 +1136,8 @@
     setStatus("");
     var ep = game.epoch;
 
-    // Victory: let the board settle — a soft radial pulse — before the
-    // overlay claims the moment. Never explode into particles.
+    // Victory: let the board settle — a soft radial pulse — then the quiet
+    // confetti and the banner entrance. Never explode into a spectacle.
     if (!reduced && boardFrame) {
       boardFrame.animate(
         [
@@ -769,6 +1148,7 @@
         ],
         { duration: VICTORY_SETTLE_MS, easing: "cubic-bezier(0.22, 0.61, 0.36, 1)" });
     }
+    if (!reduced) fxLaunch();
 
     window.setTimeout(function () {
       if (ep !== game.epoch) return; // restarted during the settle
@@ -807,6 +1187,7 @@
     game.moves = 0;
     game.epoch++; // every in-flight animation is now orphaned
     stopHint();   // the hint never survives a level change or restart
+    fxStop();
 
     if (overlayEl) overlayEl.classList.remove("show");
     buildBoard();
