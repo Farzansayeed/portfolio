@@ -120,7 +120,8 @@ function systemPrompt() {
     "",
     "Never invent: users, usage numbers, impact, performance claims, awards, teams, roles, dates, timelines,",
     "outcomes, screenshots, or links. If evidence for a field is missing, use null / [] / false.",
-    "If the material is not a software project (or is empty), return {\"errors\": [\"...\"]}.",
+    "If the material is not a software project (or is empty), decline with a specific reason, e.g.",
+    '{"errors": ["material is a personal notes file, not software"]} — never use a literal \"...\" as the reason.',
   ].join("\n");
 }
 
