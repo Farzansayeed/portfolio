@@ -207,7 +207,18 @@
         <div class="actionbar" style="margin-bottom:12px;">
           <span id="import-status" class="status" role="status"></span>
           <span class="spacer"></span>
-          <button id="import-refresh" type="button" class="btn small">Refresh</button>
+          <button id="import-refresh" type="button" class="btn small">Refresh &amp; process queue</button>
+        </div>
+        <div class="panel" style="margin-bottom:16px;">
+          <h3>Import a repository now</h3>
+          <div class="grid">
+            <label>Owner <input id="import-owner" type="text" placeholder="Farzansayeed" value="Farzansayeed"></label>
+            <label>Repository <input id="import-repo" type="text" placeholder="my-project"></label>
+          </div>
+          <div class="add-row">
+            <button id="import-run" type="button" class="btn small solid">Import now</button>
+            <span class="kbd-note">Runs the same pipeline as a webhook delivery — the repo must already have the `portfolio` topic, be public, non-fork.</span>
+          </div>
         </div>
         <div class="card-list" id="import-list"></div>
         <p class="hint">Imported cards live in their own store — saving curated content never touches them, and removing one never touches your curated cards. A repository already covered by a curated entry is marked <b>duplicate</b> and never published twice. Low-confidence drafts are held for your review instead of going live.</p>

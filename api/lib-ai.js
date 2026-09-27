@@ -212,10 +212,9 @@ export async function callAI(material, attempt = 1) {
   const message = payload && payload.choices && payload.choices[0] && payload.choices[0].message;
   let text = message ? String(message.content || "") : "";
   if (!text && message && message.reasoning_content) {
-    // Reasoning-model fallback: some providers return the answer inside
-    // reasoning content (or exhaust the budget mid-reasoning after writing
-    // the JSON). Extract the last JSON-looking object and let the strict
-    // validator decide — malformed or unsafe output is still rejected.
+    // Reasoning-model fallback: some providers return the answer only inside
+    // reasoning content. Extract the last JSON-looking object and let the
+    // strict validator decide — malformed or unsafe output is still rejected.
     const m = /\{[\s\S]*\}/.exec(String(message.reasoning_content));
     if (m) text = m[0];
   }
@@ -228,7 +227,17 @@ export async function callAI(material, attempt = 1) {
     return { ok: false, reason };
   }
 
-  const draft = parseAndValidate(text);
+  // First try the reply as-is; if the validator rejects it (common with
+  // reasoning models that narrate around the JSON, or emit two objects),
+  // fall back to scanning the reply for embedded JSON objects and validating
+  // each candidate — the strict validator remains the gatekeeper.
+  let draft = parseAndValidate(text);
+  if (!draft) {
+    for (const candidate of extractJsonCandidates(text)) {
+      draft = parseAndValidate(candidate);
+      if (draft) break;
+    }
+  }
   if (!draft) {
     backoff.set(`${material.owner}/${material.repo}`.toLowerCase(), Date.now() + BACKOFF_MS);
     return { ok: false, reason: "AI reply failed validation." };
@@ -239,6 +248,45 @@ export async function callAI(material, attempt = 1) {
 }
 
 // ---------- reply parsing + strict validation ----------
+
+// Scans a reply for embedded JSON objects. Handles fenced blocks, prose
+// wrappers ("Here is the entry: {...}"), and consecutive objects; returns
+// up to 5 candidates for the validator to judge.
+export function extractJsonCandidates(text) {
+  const out = [];
+  if (typeof text !== "string" || !text.includes("{")) return out;
+  let depth = 0;
+  let start = -1;
+  let inStr = false;
+  let esc = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === "\\") esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') {
+      if (depth > 0) inStr = true;
+      continue;
+    }
+    if (ch === "{") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "}") {
+      if (depth > 0) {
+        depth--;
+        if (depth === 0 && start !== -1) {
+          out.push(text.slice(start, i + 1));
+          start = -1;
+          if (out.length >= 5) return out;
+        }
+      }
+    }
+  }
+  return out;
+}
 
 export function parseAndValidate(text) {
   if (typeof text !== "string") return null;

@@ -979,6 +979,40 @@
     importsWired = true;
     var refresh = el("import-refresh");
     if (refresh) refresh.addEventListener("click", function () { loadImports({ drain: true }); });
+    var runBtn = el("import-run");
+    var ownerIn = el("import-owner");
+    var repoIn = el("import-repo");
+    if (runBtn && ownerIn && repoIn) {
+      runBtn.addEventListener("click", function () {
+        var owner = ownerIn.value.trim();
+        var repo = repoIn.value.trim();
+        if (!owner || !repo) { toast("Enter the GitHub owner and repository name", "err"); return; }
+        var statusEl = el("import-status");
+        if (statusEl) {
+          statusEl.textContent = "Importing " + owner + "/" + repo + " — this can take a couple of minutes…";
+          statusEl.className = "status";
+        }
+        fetch("/api/imports", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ action: "import", owner: owner, repo: repo }),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (statusEl) {
+              statusEl.textContent = d.ok
+                ? "Import ran — result: " + d.action + (d.status ? " (" + d.status + ")" : "")
+                : (d.error || "Import failed.");
+              statusEl.className = "status " + (d.ok ? "ok" : "err");
+            }
+            loadImports();
+          })
+          .catch(function () {
+            if (statusEl) { statusEl.textContent = "Network error."; statusEl.className = "status err"; }
+          });
+      });
+    }
   }
 
   // navigate() hook: opening the page shows state, then drains any queued

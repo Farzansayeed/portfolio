@@ -37,6 +37,11 @@ function findEntry(store, key) {
   return store.projects.find((e) => e && e.key === key);
 }
 
+function cleanInput(v, cap) {
+  if (typeof v !== "string") return "";
+  return v.trim().slice(0, cap);
+}
+
 export default async function handler(req, res) {
   if (req.method === "GET") {
     const url = new URL(req.url, "http://x");
@@ -73,6 +78,20 @@ export default async function handler(req, res) {
     if (action === "diagnose") {
       const report = await diagnoseImports();
       return json(res, 200, { ok: true, report });
+    }
+
+    // Manual import: run the pipeline for owner/repo without waiting for a
+    // webhook. Same eligibility rules apply (owner allow-list, topic,
+    // public/non-fork/non-archived) — the pipeline re-checks everything.
+    if (action === "import") {
+      const owner = cleanInput(body && body.owner, 60);
+      const repo = cleanInput(body && body.repo, 80);
+      if (!owner || !repo || !/^[A-Za-z0-9-]+$/.test(owner) || !/^[A-Za-z0-9_.-]+$/.test(repo)) {
+        return json(res, 400, { ok: false, error: "Provide owner and repo (GitHub names)." });
+      }
+      const result = await processRepository({ owner, repo, trigger: "manual" });
+      if (!result.ok) return json(res, 502, { ok: false, error: result.reason || "Import failed." });
+      return json(res, 200, { ok: true, action: result.action, status: result.status, reason: result.reason || null });
     }
 
     if (action === "retry") {
