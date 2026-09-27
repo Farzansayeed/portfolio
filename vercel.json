@@ -18,6 +18,6 @@
   ],
   "functions": {
     "api/github-webhook.js": { "maxDuration": 300 },
-    "api/imports.js": { "maxDuration": 120 }
+    "api/imports.js": { "maxDuration": 300 }
   }
 }

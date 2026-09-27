@@ -19,10 +19,11 @@
 //     memory per serverless instance, plus a module-level cooldown after a
 //     failure so a misbehaving repo cannot trigger repeated expensive calls.
 
-// Free-tier providers (NVIDIA NIM) queue requests: measured 40-90s per call.
-// The function window (300s) allows the call plus one automatic retry.
-const DEFAULT_TIMEOUT_MS = 90000;
-const AI_RETRY_ATTEMPTS = 2; // one retry after a timeout
+// Free-tier providers (NVIDIA NIM) queue requests: measured 40-96s per call.
+// Single attempt with a generous timeout — the drain/retry request must fit
+// inside the platform's function window, and 90s+retry exceeded it.
+const DEFAULT_TIMEOUT_MS = 150000;
+const AI_RETRY_ATTEMPTS = 1; // no automatic retry: stay inside the window
 const MAX_INPUT_CHARS = 6000; // bounded repo material fed to the model
 const MAX_REPLY_CHARS = 4096;
 // Some OpenAI-compatible providers (e.g. NVIDIA NIM build.amazon-style hosts)
@@ -177,8 +178,6 @@ export async function callAI(material, attempt = 1) {
   } catch (e) {
     clearTimeout(timer);
     const isTimeout = e && e.name === "AbortError";
-    // Free-tier queues are bursty: a pure timeout gets one automatic retry
-    // (the next attempt often lands in seconds), other errors back off hard.
     if (isTimeout && attempt < AI_RETRY_ATTEMPTS) {
       return callAI(material, attempt + 1);
     }
