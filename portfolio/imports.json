@@ -8,11 +8,37 @@
       "repo": "c-learning-roadmap",
       "htmlUrl": "https://github.com/Farzansayeed/c-learning-roadmap",
       "importedAt": "2026-09-27T12:16:44.977Z",
-      "trigger": "webhook",
-      "lastAttemptAt": "2026-09-27T14:03:47.878Z",
-      "status": "error",
-      "published": false,
-      "lastError": "AI spent its token budget reasoning without answering — retry."
+      "trigger": "manual",
+      "lastAttemptAt": "2026-09-27T14:06:32.907Z",
+      "status": "published",
+      "published": true,
+      "confidence": "high",
+      "category": "web",
+      "featured": true,
+      "project": {
+        "id": "import-c-learning-roadmap",
+        "name": "C × DSA Roadmap Tracker",
+        "badge": "Imported from GitHub",
+        "flagship": false,
+        "visible": true,
+        "whatItIs": "A single-file, zero-dependency HTML app for tracking a C programming and Data Structures & Algorithms learning journey, with a 12-stage roadmap, daily task checklists, streaks, and a 10-week activity heatmap. It includes accountability feat",
+        "tech": [
+          "HTML",
+          "JavaScript",
+          "localStorage",
+          "Vercel"
+        ],
+        "links": [
+          {
+            "label": "Source",
+            "url": "https://github.com/farzansayeed/c-learning-roadmap"
+          },
+          {
+            "label": "Live",
+            "url": "https://c-learning-roadmap.vercel.app"
+          }
+        ]
+      }
     }
   ]
 }
