@@ -169,10 +169,10 @@ export async function callAI(material, attempt = 1) {
           { role: "user", content: user },
         ],
         temperature: 0.2,
-        // Reasoning models (GLM/Kimi on NVIDIA NIM) can spend several hundred
-        // tokens thinking even with thinking disabled; leave room for the JSON
-        // answer on top of the reasoning budget.
-        max_tokens: 1600,
+        // Reasoning models (GLM/Kimi on NVIDIA NIM) spend 800-1500 tokens
+        // thinking even with thinking disabled; the answer rides on top.
+        // 4000 covers worst-case reasoning + JSON answer without truncation.
+        max_tokens: 4000,
         ...(DISABLE_THINKING ? { chat_template_kwargs: { thinking: false } } : {}),
       }),
       signal: ctrl.signal,
