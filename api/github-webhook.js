@@ -21,6 +21,11 @@ import {
 } from "./lib-import.js";
 import { json } from "./lib.js";
 
+// AI providers on free tiers can be slow (40-90s); allow the function the
+// plan's maximum duration. (Re-exported from lib-import.js for the Vercel
+// route config reader, which only inspects the entry module.)
+export { maxDuration } from "./lib-import.js";
+
 const replay = new Map(); // delivery id -> processed epoch ms
 const REPLAY_TTL_MS = 10 * 60 * 1000;
 

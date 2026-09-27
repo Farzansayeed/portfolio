@@ -19,9 +19,14 @@
 //     memory per serverless instance, plus a module-level cooldown after a
 //     failure so a misbehaving repo cannot trigger repeated expensive calls.
 
-const DEFAULT_TIMEOUT_MS = 20000;
+const DEFAULT_TIMEOUT_MS = 45000;
 const MAX_INPUT_CHARS = 6000; // bounded repo material fed to the model
 const MAX_REPLY_CHARS = 4096;
+// Some OpenAI-compatible providers (e.g. NVIDIA NIM build.amazon-style hosts)
+// serve reasoning models that burn tokens before answering. Setting
+// AI_DISABLE_THINKING=1 adds provider-side chat_template_kwargs to turn that
+// off; harmless to omit for providers that ignore unknown fields.
+const DISABLE_THINKING = process.env.AI_DISABLE_THINKING === "1";
 
 // Per-process memoization: draft per repo@sha, so webhook retries / duplicate
 // deliveries never repeat an identical expensive call while warm.
@@ -145,6 +150,7 @@ export async function callAI(material) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: "application/json",
         Authorization: `Bearer ${c.apiKey}`,
       },
       body: JSON.stringify({
@@ -155,6 +161,7 @@ export async function callAI(material) {
         ],
         temperature: 0.2,
         max_tokens: 700,
+        ...(DISABLE_THINKING ? { chat_template_kwargs: { thinking: false } } : {}),
       }),
       signal: ctrl.signal,
     });
@@ -179,12 +186,15 @@ export async function callAI(material) {
     return { ok: false, reason: "AI provider returned invalid JSON." };
   }
 
-  const text =
-    payload && payload.choices && payload.choices[0] && payload.choices[0].message
-      ? String(payload.choices[0].message.content || "")
-      : "";
+  const message = payload && payload.choices && payload.choices[0] && payload.choices[0].message;
+  const text = message ? String(message.content || "") : "";
   if (!text || text.length > MAX_REPLY_CHARS) {
-    return { ok: false, reason: "AI reply missing or too large." };
+    // Reasoning models that exhaust max_tokens before answering return
+    // content: null with reasoning_content filled — surface that clearly.
+    const reason = message && message.reasoning_content
+      ? "AI spent its token budget reasoning without answering — retry."
+      : "AI reply missing or too large.";
+    return { ok: false, reason };
   }
 
   const draft = parseAndValidate(text);

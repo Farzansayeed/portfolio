@@ -18,6 +18,8 @@ import {
   processRepository,
 } from "./lib-import.js";
 
+export { maxDuration } from "./lib-import.js"; // admin retry can call slow AI
+
 function keyFromQuery(req) {
   try {
     return new URL(req.url, "http://x").searchParams.get("key") || "";

@@ -28,6 +28,11 @@ const MAX_WEBHOOK_BODY = 512 * 1024;
 const README_CAP = 32000;
 const PUSH_COOLDOWN_MS = 60 * 1000;
 
+// Function-level limits for slow AI providers (NVIDIA NIM queueing can take
+// 40-90s per call). Vercel Hobby caps serverless functions at 60s by default;
+// maxDuration raises the ceiling up to the plan limit (60 on Hobby).
+export const maxDuration = 60;
+
 // Edge Config access — mirrors api/content.js (Global Config + classic).
 const GC_DESCRIPTOR = process.env.GLOBAL_CONFIG;
 const GC_BASE = process.env.EDGE_CONFIG_API || "https://global-config.vercel.com";
@@ -42,7 +47,7 @@ const pushCooldown = new Map(); // "owner/repo" -> last processed epoch ms
 
 // ---------- tiny helpers ----------
 
-function gcInfo() {
+export function gcInfo() {
   if (!GC_DESCRIPTOR) return null;
   try {
     const url = new URL(GC_DESCRIPTOR);
