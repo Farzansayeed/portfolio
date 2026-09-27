@@ -952,6 +952,13 @@
     return fetch(url, { credentials: "same-origin" })
       .then(function (r) {
         if (r.status === 401) { showLogin(); return null; }
+        if (r.status === 429) {
+          if (statusEl) {
+            statusEl.textContent = "Rate-limited — wait a minute and press Refresh.";
+            statusEl.className = "status err";
+          }
+          return null;
+        }
         return r.json();
       })
       .then(function (d) {
@@ -1052,11 +1059,14 @@
   }
 
   function probe() {
-    // read-only session check — GET /api/auth returns 200 authed, 401 not
+    // read-only session check — the editor opens ONLY on an explicit 200.
+    // Anything else (401 not-logged-in, 429 rate-limited, 5xx, network
+    // garbage) fails CLOSED to the login screen: a rate-limited probe must
+    // never look like a signed-in session.
     fetch("/api/auth", { credentials: "same-origin" })
       .then(function (r) {
-        if (r.status === 401) showLogin();
-        else init();
+        if (r.status === 200) init();
+        else showLogin();
       })
       .catch(showLogin);
   }
