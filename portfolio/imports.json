@@ -9,7 +9,7 @@
       "htmlUrl": "https://github.com/Farzansayeed/portfolio-import-test",
       "importedAt": "2026-09-27T09:15:33.940Z",
       "trigger": "webhook",
-      "lastAttemptAt": "2026-09-27T09:47:48.750Z",
+      "lastAttemptAt": "2026-09-27T09:52:14.614Z",
       "status": "error",
       "published": false,
       "lastError": "AI timed out after 150s (provider queue) — press Retry."
