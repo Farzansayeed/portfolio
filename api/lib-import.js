@@ -1,29 +1,34 @@
 // Imported-projects store + GitHub import pipeline. Zero dependencies.
 //
-// Storage: a dedicated Edge Config key `imported_projects`, completely
-// separate from the curated `portfolio_content` key the editor writes.
-// Manual entries can never be clobbered. Shape:
-//   { version: 1, projects: [entry, ...] }
+// Storage: the import store is the committed file `portfolio/imports.json`
+// in this repository (shape: { version: 1, projects: [entry, ...] }), read
+// fresh through the GitHub API on every pipeline run and written back with a
+// single commit. This keeps imported state visible and auditable in git and
+// completely independent of the Edge Config store that holds curated content
+// (whose 8 KB free-tier budget curated content already nearly fills — a
+// shared store refused every import write).
+//
 // entry: { key, repoId, owner, repo, htmlUrl, importedAt, lastAttemptAt,
 //          status, published, trigger, confidence?, category?, featured?,
 //          lastError?, project? }
-//   status: "published" | "held" | "error" | "unpublished" | "duplicate"
+//   status: "published" | "held" | "pending" | "error" | "unpublished" | "duplicate"
 //   key: normalized GitHub URL (the stable unique id); repoId kept as backup.
 //
-// Free-tier Edge Config caps a store at 8 KB and the curated content already
-// lives in the same store, so imports get a small explicit budget (checked
-// against the curated size before every write; the write is refused — with a
-// clear recorded reason — rather than corrupting the store).
+// Writes require GITHUB_TOKEN with `repo` scope (Contents: write on the
+// portfolio repo). Reads work without a token (public repo, lower limits).
+// Each write triggers Vercel's auto-deploy (~60-120s) before the public site
+// shows the change; the admin panel reads state through the same file.
 
 import crypto from "crypto";
 import { aiConfigured, callAI } from "./lib-ai.js";
 
 const OWNER = (process.env.GITHUB_IMPORT_OWNER || "Farzansayeed").trim();
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || "";
-const STORE_KEY = "imported_projects";
-const MAX_IMPORTS = 4;
-const MAX_STORE_CHARS = 3200;
-const COMBINED_BUDGET_CHARS = 7600;
+// The repo that hosts the import store (the portfolio repo itself).
+const STORE_REPO = (process.env.IMPORT_STORE_REPO || "portfolio").trim();
+const STORE_BRANCH = (process.env.IMPORT_STORE_BRANCH || "main").trim();
+const STORE_PATH = (process.env.IMPORT_STORE_PATH || "portfolio/imports.json").trim();
+const MAX_IMPORTS = 12;
 const MAX_WEBHOOK_BODY = 512 * 1024;
 const README_CAP = 32000;
 const PUSH_COOLDOWN_MS = 60 * 1000;
@@ -167,6 +172,8 @@ export function validateStoreShape(x) {
   return { version: 1, projects: projects.slice(0, MAX_IMPORTS + 8) };
 }
 
+// ---------- Edge Config read (curated content only — for dedupe) ----------
+
 async function storeReadKey(key) {
   const gc = gcInfo();
   if (gc) {
@@ -200,81 +207,93 @@ async function storeReadKey(key) {
   return null;
 }
 
-async function storeWriteKey(key, value) {
-  const gc = gcInfo();
-  const items = [{ operation: "upsert", key, value }];
-  if (gc) {
-    if (!API_TOKEN) return false;
+// ---------- store: portfolio/imports.json in this GitHub repo ----------
+
+function ghStoreHeaders(extra) {
+  const h = { "User-Agent": "portfolio-import", ...(extra || {}) };
+  if (GITHUB_TOKEN) h.Authorization = `Bearer ${GITHUB_TOKEN}`;
+  return h;
+}
+
+async function ghStoreJson(path) {
+  try {
+    const res = await fetchT(`https://api.github.com${path}`, { headers: ghStoreHeaders({ Accept: "application/vnd.github+json" }) }, 8000);
+    if (!res.ok) return { ok: false, status: res.status };
+    return { ok: true, status: res.status, json: await res.json() };
+  } catch (e) {
+    return { ok: false, status: 0, error: String((e && e.message) || e) };
+  }
+}
+
+// Read the committed import store. Fresh on every call — no caching — so the
+// admin view always reflects the latest committed state.
+async function readImportStoreRaw() {
+  const r = await ghStoreJson(`/repos/${OWNER}/${STORE_REPO}/contents/${STORE_PATH}?ref=${encodeURIComponent(STORE_BRANCH)}`);
+  if (r.ok && r.json && typeof r.json.content === "string") {
     try {
-      const res = await fetchT(
-        `${GC_WRITE_BASE}/v1/global-config/${gc.id}/items` + (TEAM_ID ? `?teamId=${TEAM_ID}` : ""),
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${API_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ items }),
-        },
-        8000
-      );
-      return res.ok;
+      return { store: validateStoreShape(JSON.parse(Buffer.from(r.json.content, "base64").toString("utf8"))), sha: r.json.sha || null };
     } catch {
-      return false;
+      return { store: emptyStore(), sha: r.json.sha || null };
     }
   }
-  if (CLASSIC_ID && CLASSIC_TOKEN) {
-    try {
-      const res = await fetchT(
-        `${CLASSIC_BASE}/v1/edge-config/${CLASSIC_ID}/items/${key}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${CLASSIC_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ items }),
-        },
-        8000
-      );
-      return res.ok;
-    } catch {
-      return false;
-    }
+  if (r.status === 404) return { store: emptyStore(), sha: null }; // first run: file does not exist yet
+  return { store: null, sha: null, error: r.status === 403 ? "GitHub rate limit while reading the import store." : `GitHub API ${r.status || " unreachable"} while reading the import store.` };
+}
+
+// Commit the store back. Uses the Contents API: GET gives the current sha,
+// PUT upserts. 422 with "does not exist" handling covers the first-write race.
+async function writeImportStoreRaw(store) {
+  if (!GITHUB_TOKEN) {
+    return { ok: false, reason: "GITHUB_TOKEN not configured — cannot commit the import store." };
   }
-  return false;
+  const body = JSON.stringify(store, null, 2) + "\n";
+  const content = Buffer.from(body, "utf8").toString("base64");
+
+  let sha = null;
+  const cur = await ghStoreJson(`/repos/${OWNER}/${STORE_REPO}/contents/${STORE_PATH}?ref=${encodeURIComponent(STORE_BRANCH)}`);
+  if (cur.ok && cur.json && cur.json.sha) sha = cur.json.sha;
+  else if (!cur.ok && cur.status !== 404) {
+    return { ok: false, reason: cur.error || `Could not read the import store before writing (GitHub ${cur.status}).` };
+  }
+
+  const put = await fetchT(
+    `https://api.github.com/repos/${OWNER}/${STORE_REPO}/contents/${STORE_PATH}`,
+    {
+      method: "PUT",
+      headers: ghStoreHeaders({ Accept: "application/vnd.github+json", "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        message: `imports: update imported-projects store (${store.projects.length} entr${store.projects.length === 1 ? "y" : "ies"})`,
+        content,
+        branch: STORE_BRANCH,
+        ...(sha ? { sha } : {}),
+      }),
+    },
+    12000
+  ).then(async (res) => ({ status: res.status, ok: res.ok, body: await res.json().catch(() => ({})) }));
+
+  if (put.ok) return { ok: true };
+  const msg = put.body && put.body.message ? String(put.body.message).slice(0, 160) : `GitHub API ${put.status}`;
+  return { ok: false, reason: `Could not commit the import store: ${msg}` };
 }
 
 export async function readStore(io) {
   if (io && io.readStore) return validateStoreShape(await io.readStore());
-  return validateStoreShape(await storeReadKey(STORE_KEY));
+  const raw = await readImportStoreRaw();
+  return raw.store === null ? emptyStore() : raw.store;
 }
 
-// Guard: curated content and imports share one Edge Config store (8 KB on the
-// free tier). Refuse the write instead of breaking the curated store.
+// Commit the store to the repo. Small on purpose (bounded entries, short
+// texts); a pathological store is refused rather than committed.
 export async function writeStore(store, io) {
-  const json = JSON.stringify(store);
-  if (json.length > MAX_STORE_CHARS) return { ok: false, reason: `Import store over its ${Math.round(MAX_STORE_CHARS / 1024)} KB budget.` };
   if (io && io.writeStore) {
     const ok = await io.writeStore(store);
     return ok ? { ok: true } : { ok: false, reason: "Could not persist the import store." };
   }
-  let curatedSize = 0;
-  try {
-    const curated = await storeReadKey("portfolio_content");
-    if (curated) curatedSize = JSON.stringify(curated).length;
-  } catch {
-    curatedSize = 0;
+  const json = JSON.stringify(store);
+  if (json.length > 64 * 1024) {
+    return { ok: false, reason: "Import store implausibly large — refusing to commit." };
   }
-  if (curatedSize + json.length > COMBINED_BUDGET_CHARS) {
-    return {
-      ok: false,
-      reason:
-        "Edge Config store budget reached (curated content + imports). Trim curated content or remove an import.",
-    };
-  }
-  const ok = await storeWriteKey(STORE_KEY, store);
-  return ok ? { ok: true } : { ok: false, reason: "Could not persist the import store (check VERCEL_API_TOKEN)." };
+  return writeImportStoreRaw(store);
 }
 
 // ---------- GitHub reads (bounded, untrusted content) ----------
@@ -399,6 +418,8 @@ function trustedLiveUrl(material) {
 
 // ---------- curated dedupe ----------
 
+// Curated dedupe reads the Edge Config store (curated content still lives
+// there) via the same read path api/content.js uses.
 async function readCuratedRepoKeys() {
   const keys = new Set();
   try {
@@ -729,16 +750,18 @@ export async function diagnoseImports() {
 
   const t0 = Date.now();
   try {
-    const store = await readStore();
-    out.store.read = { ok: true, entries: store.projects.length, ms: Date.now() - t0 };
+    const raw = await readImportStoreRaw();
+    out.store.read = raw.store === null
+      ? { ok: false, reason: raw.error || "unreadable", ms: Date.now() - t0 }
+      : { ok: true, entries: raw.store.projects.length, ms: Date.now() - t0 };
   } catch (e) {
     out.store.read = { ok: false, reason: String((e && e.message) || e).slice(0, 120) };
   }
 
   const t1 = Date.now();
   try {
-    const store = await readStore();
-    const w = await writeStore(store); // no-op rewrite of the current state
+    const raw = await readImportStoreRaw();
+    const w = await writeStore(raw.store); // no-op rewrite of the current state
     out.store.write = { ok: w.ok, reason: w.reason || null, ms: Date.now() - t1 };
   } catch (e) {
     out.store.write = { ok: false, reason: String((e && e.message) || e).slice(0, 120) };
