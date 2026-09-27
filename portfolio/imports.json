@@ -9,10 +9,10 @@
       "htmlUrl": "https://github.com/Farzansayeed/c-learning-roadmap",
       "importedAt": "2026-09-27T12:16:44.977Z",
       "trigger": "webhook",
-      "lastAttemptAt": "2026-09-27T12:46:36.760Z",
+      "lastAttemptAt": "2026-09-27T12:52:52.861Z",
       "status": "error",
       "published": false,
-      "lastError": "AI spent its token budget reasoning without answering — retry."
+      "lastError": "AI timed out after 240s (provider queue) — press Retry."
     }
   ]
 }
