@@ -1,37 +1,4 @@
 {
   "version": 1,
-  "projects": [
-    {
-      "key": "https://github.com/farzansayeed/portfolio-import-test",
-      "repoId": 1390443870,
-      "owner": "Farzansayeed",
-      "repo": "portfolio-import-test",
-      "htmlUrl": "https://github.com/Farzansayeed/portfolio-import-test",
-      "importedAt": "2026-09-27T11:34:45.457Z",
-      "trigger": "webhook",
-      "lastAttemptAt": "2026-09-27T11:35:43.921Z",
-      "status": "published",
-      "published": true,
-      "confidence": "high",
-      "category": "tool",
-      "featured": false,
-      "project": {
-        "id": "import-portfolio-import-test",
-        "name": "Portfolio Import Test",
-        "badge": "Imported from GitHub",
-        "flagship": false,
-        "visible": true,
-        "whatItIs": "A small command-line utility that validates ISO-8601 date strings and normalizes them to YYYY-MM-DD format, exiting non-zero on invalid input so shell scripts can rely on it.",
-        "tech": [
-          "Go"
-        ],
-        "links": [
-          {
-            "label": "Source",
-            "url": "https://github.com/farzansayeed/portfolio-import-test"
-          }
-        ]
-      }
-    }
-  ]
+  "projects": []
 }
