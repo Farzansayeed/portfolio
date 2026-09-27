@@ -188,7 +188,7 @@ export async function callAI(material, attempt = 1) {
     return {
       ok: false,
       reason: isTimeout
-        ? `AI timed out twice (${Math.round(DEFAULT_TIMEOUT_MS / 1000)}s each) — provider queue. Press Retry.`
+        ? `AI timed out after ${Math.round(DEFAULT_TIMEOUT_MS / 1000)}s (provider queue) — press Retry.`
         : "AI request failed (network).",
     };
   }
