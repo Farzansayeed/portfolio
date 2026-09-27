@@ -91,22 +91,21 @@ export default async function handler(req, res) {
     return json(res, 200, { ok: true, handled: false, reason: "no repository in payload" });
   }
 
-  let result;
-  try {
-    result =
-      event === "push"
-        ? await handlePushEvent(repoPayload)
-        : await handleRepositoryEvent(repoPayload);
-  } catch (e) {
-    console.error("webhook pipeline error:", e && (e.message || String(e)));
-    return json(res, 200, { ok: false, error: "pipeline error recorded" });
-  }
+  // GitHub expects fast webhook responses; AI providers on free tiers can take
+  // 40-90s. Acknowledge immediately, then let the pipeline finish in the
+  // background — Fluid compute keeps the function alive until pending work
+  // drains (within maxDuration). Storage and AI failures are recorded in the
+  // admin Imports view either way.
+  const run = (event === "push"
+    ? handlePushEvent(repoPayload)
+    : handleRepositoryEvent(repoPayload)
+  ).catch((e) => console.error("webhook pipeline error:", e && (e.message || String(e))));
 
-  if (result && result.ok) {
-    return json(res, 200, { ok: true, action: result.action });
-  }
-  // Storage/pipeline failures are recorded in the admin view; acknowledge so
-  // GitHub does not hot-retry a failing store.
-  console.error("webhook pipeline failure:", result && result.reason);
-  return json(res, 200, { ok: false, error: "recorded" });
+  res.statusCode = 202;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
+  res.end(JSON.stringify({ ok: true, accepted: true, processing: "background" }));
+
+  // Keep a reference so the runtime sees the pending promise; never rethrow.
+  await run;
 }
