@@ -38,6 +38,7 @@
         <a href="#/achievements" data-page="achievements"><span class="n">05</span> Achievements</a>
         <a href="#/contact" data-page="contact"><span class="n">06</span> Contact</a>
         <a href="#/seo" data-page="seo"><span class="n">07</span> SEO &amp; social</a>
+        <a href="#/imports" data-page="imports"><span class="n">08</span> Imports (GitHub)</a>
       </nav>
       <div class="side-foot">
         <a href="/" target="_blank" rel="noopener">View site ↗</a>
@@ -195,6 +196,21 @@
           <div class="add-row"><button id="add-contactlink" type="button" class="btn">+ Add link</button></div>
           <p class="hint">Rendered as the row of small links near the footer. At most 6 are stored.</p>
         </div>
+      </section>
+
+      <!-- ========== IMPORTS (GITHUB) ========== -->
+      <section class="page" id="page-imports" hidden>
+        <div class="page-head">
+          <h2>Imports (GitHub)</h2>
+          <p class="lede">Repositories opted in via the `portfolio` topic — retry, publish, or remove them here.</p>
+        </div>
+        <div class="actionbar" style="margin-bottom:12px;">
+          <span id="import-status" class="status" role="status"></span>
+          <span class="spacer"></span>
+          <button id="import-refresh" type="button" class="btn small">Refresh</button>
+        </div>
+        <div class="card-list" id="import-list"></div>
+        <p class="hint">Imported cards live in their own store — saving curated content never touches them, and removing one never touches your curated cards. A repository already covered by a curated entry is marked <b>duplicate</b> and never published twice. Low-confidence drafts are held for your review instead of going live.</p>
       </section>
 
       <!-- ========== SEO ========== -->

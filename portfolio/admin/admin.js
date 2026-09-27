@@ -24,7 +24,7 @@
   var STORE_LIMIT = 8000; // Edge Config free-tier cap, enforced server-side
 
   // routes in sidebar order — used for nav highlighting, undo scoping, stats
-  var PAGES = ["overview", "intro", "projects", "skills", "achievements", "contact", "seo"];
+  var PAGES = ["overview", "intro", "projects", "skills", "achievements", "contact", "seo", "imports"];
   var PAGE_META = {
     overview:     { title: "Overview",       lede: "What's on the site right now — edits apply when you save." },
     intro:        { title: "Intro & about",  lede: "Hero, about paragraphs, education, and the \"currently\" strip." },
@@ -33,6 +33,7 @@
     achievements: { title: "Achievements",   lede: "Shown in this order — drag to reorder." },
     contact:      { title: "Contact",        lede: "Heading, email, résumé button, and the footer link row." },
     seo:          { title: "SEO & social",   lede: "What browsers and social cards show." },
+    imports:      { title: "Imports (GitHub)", lede: "Repositories opted in via the `portfolio` topic — retry, publish, or remove them here." },
   };
 
   var el = function (id) { return document.getElementById(id); };
@@ -772,7 +773,174 @@
     if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT")) t.blur();
   });
 
-  // ---------- boot ----------
+  // ---------- imports (GitHub) panel ----------
+  // Independent of the content draft/save flow: the imports store is a
+  // separate Edge Config key, so nothing here touches state/dirty/saving.
+
+  function fmtWhen(iso) {
+    if (!iso) return "never";
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? "never" : d.toLocaleString();
+  }
+
+  function renderImports(entries) {
+    var host = el("import-list");
+    if (!host) return;
+    host.innerHTML = "";
+    if (!entries || !entries.length) {
+      var empty = document.createElement("p");
+      empty.className = "hint";
+      empty.textContent =
+        "No imports yet. Add the topic `portfolio` to a public, non-fork repository on your account, and it will appear here after its webhook delivery (or use the flow below to pull it now).";
+      host.appendChild(empty);
+      return;
+    }
+    entries.forEach(function (entry) {
+      var card = document.createElement("div");
+      card.className = "card";
+
+      var head = document.createElement("div");
+      head.className = "card-head";
+      var title = document.createElement("strong");
+      title.className = "card-title";
+      title.textContent = entry.repo ? entry.owner + "/" + entry.repo : entry.key;
+      var tools = document.createElement("div");
+      tools.className = "card-tools";
+      var st = document.createElement("span");
+      st.className = "status " + (
+        entry.status === "published" ? "ok" : entry.status === "error" ? "err" : ""
+      );
+      st.textContent = entry.status + (entry.published === true && entry.status !== "published" ? " · live" : "");
+      tools.appendChild(st);
+      head.appendChild(title);
+      head.appendChild(tools);
+      card.appendChild(head);
+
+      var body = document.createElement("div");
+      body.className = "card-body";
+      var lines = [];
+      lines.push("Last sync: " + fmtWhen(entry.lastAttemptAt || entry.importedAt));
+      if (entry.confidence) lines.push("AI confidence: " + entry.confidence);
+      if (entry.project && entry.project.name) {
+        lines.push("Drafted: “" + entry.project.name + "” — " + entry.project.whatItIs);
+      }
+      if (entry.lastError) lines.push("Status: " + entry.lastError);
+      lines.forEach(function (t) {
+        var p = document.createElement("p");
+        p.style.margin = "4px 0";
+        p.textContent = t;
+        body.appendChild(p);
+      });
+      card.appendChild(body);
+
+      var actions = document.createElement("div");
+      actions.className = "add-row";
+      function mkBtn(label, kind) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "btn small" + (kind === "solid" ? " solid" : "");
+        b.textContent = label;
+        return b;
+      }
+      var link = document.createElement("a");
+      link.className = "btn small ghost";
+      link.href = entry.htmlUrl || entry.key;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = "View on GitHub ↗";
+      actions.appendChild(link);
+      actions.appendChild(mkBtn("Retry import", "solid")).addEventListener("click", function () {
+        importAction("retry", entry.key, "Re-running import…");
+      });
+      if (entry.project) {
+        if (entry.published) {
+          actions.appendChild(mkBtn("Hide", "")).addEventListener("click", function () {
+            importAction("hide", entry.key, "Hiding…");
+          });
+        } else {
+          actions.appendChild(mkBtn("Publish", "solid")).addEventListener("click", function () {
+            importAction("publish", entry.key, "Publishing…");
+          });
+        }
+      }
+      actions.appendChild(mkBtn("Remove", "")).addEventListener("click", function () {
+        if (!confirm("Remove this imported entry? Curated cards are untouched.")) return;
+        importAction("remove", entry.key, "Removing…");
+      });
+      card.appendChild(actions);
+      host.appendChild(card);
+    });
+  }
+
+  function importAction(action, key, busyMsg) {
+    var statusEl = el("import-status");
+    if (statusEl) {
+      statusEl.textContent = busyMsg || "Working…";
+      statusEl.className = "status";
+    }
+    fetch("/api/imports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ action: action, key: key }),
+    })
+      .then(function (r) {
+        return r.json().then(function (d) { return { status: r.status, data: d }; });
+      })
+      .then(function (res) {
+        if (res.status === 401) { showLogin(); return; }
+        var ok = res.data && res.data.ok;
+        var msg = ok
+          ? action === "retry"
+            ? "Import re-ran — result: " + (res.data.action || res.data.status || "done")
+            : "Done."
+          : (res.data && res.data.error) || "Action failed.";
+        if (statusEl) {
+          statusEl.textContent = msg;
+          statusEl.className = "status " + (ok ? "ok" : "err");
+        }
+        loadImports();
+      })
+      .catch(function () {
+        if (statusEl) {
+          statusEl.textContent = "Network error.";
+          statusEl.className = "status err";
+        }
+      });
+  }
+
+  function loadImports() {
+    var statusEl = el("import-status");
+    return fetch("/api/imports?view=admin", { credentials: "same-origin" })
+      .then(function (r) {
+        if (r.status === 401) { showLogin(); return null; }
+        return r.json();
+      })
+      .then(function (d) {
+        if (d && d.ok && d.admin) renderImports(d.entries);
+      })
+      .catch(function () {
+        if (statusEl) {
+          statusEl.textContent = "Could not load imports.";
+          statusEl.className = "status err";
+      }
+      });
+  }
+
+  var importsWired = false;
+  function wireImports() {
+    if (importsWired) return;
+    importsWired = true;
+    var refresh = el("import-refresh");
+    if (refresh) refresh.addEventListener("click", loadImports);
+  }
+
+  // navigate() hook: load imports when the page is shown
+  var _navigate = navigate;
+  navigate = function (route, push) {
+    _navigate(route, push);
+    if (route === "imports") { wireImports(); loadImports(); }
+  };
 
   function init() {
     loadContent()

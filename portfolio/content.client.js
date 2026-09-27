@@ -85,27 +85,11 @@
     }
   }
 
-  function applyProjects(c) {
-    var host = document.getElementById("f-projects");
-    if (!host) return;
-    var template = document.getElementById("f-project-template");
-    if (!template) return;
-
-    // Central content is authoritative even when it empties the list.
-    // Only null/non-array central content (older schema) keeps the bundled markup.
-    if (!Array.isArray(c.projects)) return;
-
-    var saved = c.projects.filter(function (p) {
-      return p.visible !== false && typeof p.name === "string" && p.name;
-    });
-
-    // remove all statically-defined case articles; rebuild from saved content
-    host.querySelectorAll(".case").forEach(function (el) {
-      el.remove();
-    });
-
-    saved.forEach(function (p, i) {
-      var node = template.content.cloneNode(true);
+  // Builds one project card from the shared template — used both by the
+  // curated-content rebuild (applyProjects) and by imported-card hydration
+  // (applyImports), so imported cards look exactly like curated ones.
+  function buildProjectCard(template, p, i) {
+    var node = template.content.cloneNode(true);
       var root = node.querySelector(".case");
       if (p.flagship) root.classList.add("case-flagship");
       if (p.id) root.id = "project-" + p.id;
@@ -208,8 +192,96 @@
         fig.hidden = false;
       }
 
-      host.appendChild(node);
+      return node;
+  }
+
+  function applyProjects(c) {
+    var host = document.getElementById("f-projects");
+    if (!host) return;
+    var template = document.getElementById("f-project-template");
+    if (!template) return;
+
+    // Central content is authoritative even when it empties the list.
+    // Only null/non-array central content (older schema) keeps the bundled markup.
+    if (!Array.isArray(c.projects)) return;
+
+    var saved = c.projects.filter(function (p) {
+      return p.visible !== false && typeof p.name === "string" && p.name;
     });
+
+    // remove all statically-defined case articles; rebuild from saved content
+    host.querySelectorAll(".case").forEach(function (el) {
+      el.remove();
+    });
+
+    saved.forEach(function (p, i) {
+      host.appendChild(buildProjectCard(template, p, i));
+    });
+  }
+
+  // Imported projects (GitHub repo tagged `portfolio` → AI draft → store).
+  // Hydrated AFTER curated content so the curated rebuild can never wipe
+  // them; anything already covered by a curated card is skipped.
+  function applyImports(entries) {
+    var host = document.getElementById("f-projects");
+    if (!host || !Array.isArray(entries) || !entries.length) return;
+    var template = document.getElementById("f-project-template");
+    if (!template) return;
+
+    // dedupe sets built from whatever cards exist right now (static HTML or
+    // centrally-hydrated — both mirror the curated list)
+    var names = {};
+    var repoSlugs = {};
+    host.querySelectorAll(".case").forEach(function (el) {
+      var n = el.querySelector(".case-name");
+      if (n && n.textContent) names[n.textContent.trim().toLowerCase()] = true;
+      el.querySelectorAll("a[href]").forEach(function (a) {
+        var m = /^https?:\/\/github\.com\/([^/\s]+)\/([^/#?\s]+)/i.exec(a.getAttribute("href") || "");
+        if (m) repoSlugs[(m[1] + "/" + m[2]).toLowerCase()] = true;
+      });
+    });
+
+    function slugOf(u) {
+      var m = /^https?:\/\/github\.com\/([^/\s]+)\/([^/#?\s]+)/i.exec(String(u || ""));
+      return m ? (m[1] + "/" + m[2]).toLowerCase() : "";
+    }
+
+    var count = host.querySelectorAll(".case").length;
+    var palette = [];
+
+    entries.forEach(function (entry) {
+      var p = entry && entry.project;
+      if (!p || typeof p.name !== "string" || !p.name) return;
+      var nm = p.name.trim().toLowerCase();
+      if (names[nm]) return; // a curated card already uses this name
+      var slug = slugOf(entry.key || entry.htmlUrl);
+      if (slug && repoSlugs[slug]) return; // a curated card links this repo
+      if (p.id && document.getElementById("project-" + p.id)) return; // already hydrated
+      host.appendChild(buildProjectCard(template, p, count));
+      count++;
+      names[nm] = true;
+
+      // palette registration: prefer the Live link, else the Source link
+      var href = "";
+      (p.links || []).forEach(function (l) {
+        if (l && l.url && !href) href = l.url;
+        if (l && l.url && /^live/i.test(l.label || "")) href = l.url;
+      });
+      if (href) {
+        palette.push({
+          label: p.name,
+          hint: "Imported",
+          href: href,
+          external: /^https?:/i.test(href),
+        });
+      }
+    });
+
+    if (palette.length) {
+      document.dispatchEvent(
+        new CustomEvent("nav:imported-projects", { detail: { projects: palette } })
+      );
+    }
   }
 
   function applySkills(c) {
@@ -392,5 +464,23 @@
     })
     .catch(function () {
       /* bundled defaults remain */
+    })
+    .then(function () {
+      // Imported projects hydrate after curated content (which may rebuild
+      // the whole projects list) and are appended, never replacing it. Any
+      // failure here leaves the site exactly as it was.
+      window
+        .fetch("/api/imports", { signal: fetchTimeout(6000) })
+        .then(function (r) {
+          return r.ok ? r.json() : null;
+        })
+        .then(function (d) {
+          if (d && d.ok && Array.isArray(d.entries) && d.entries.length) {
+            applyImports(d.entries);
+          }
+        })
+        .catch(function () {
+          /* imports endpoint unavailable — nothing appended */
+        });
     });
 })();

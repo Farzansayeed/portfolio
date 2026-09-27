@@ -94,7 +94,12 @@ Motion here follows one principle: **80% stillness, 20% motion** — animations 
 - `portfolio/content.default.json` is the baseline content bundled into the shipped HTML — the site is fully rendered without any API.
 - `content.client.js` (~4 KB, public) fetches `/api/content` and hydrates saved content over the fallback. If the API is missing or errors, nothing happens — the bundled content stands.
 - `admin/index.html` + `admin/admin.js` is the editor: it signs in against `/api/auth` (rate-limited), loads/saves via `/api/content` (PUT, authenticated), keeps an unsaved draft in `localStorage` (`pf_admin_draft_v1`) with a restore bar, previews screenshots before save, and confirms saves with a diff summary + an 8 KB size meter against the store limit.
+- Imported projects (see below) live in a **separate Edge Config key** (`imported_projects`) — editor saves can never touch them, and they hydrate after curated content with name/repo dedupe.
 - The hidden trigger: five clicks within three seconds on the brand dot → silent navigation to `/admin/`. Obscurity is convenience, not security — see the security model below.
+
+## 4b. Automatic GitHub imports
+
+Add the topic `portfolio` to a public, non-fork repository on the `Farzansayeed` account and the site imports it automatically: a GitHub App webhook (signature-verified server-side) triggers a bounded read of public repo material (metadata, README, languages, a couple of manifests, optional `.portfolio.json`), an AI adapter drafts a strict, validated portfolio entry (title, short factual description, evidence-backed tech, GitHub URL — never invented users, metrics, or dates), and the card is added to the live site in the existing project design. Re-imports update in place; removing the topic unpublishes only that card; curated entries always win. Low-confidence drafts are held for admin review instead of publishing. Setup (GitHub App, webhook, env vars, AI config): **`docs/github-import-setup.md`**.
 
 ## 5. SEO
 
@@ -149,6 +154,7 @@ Every feature above was verified in a real browser against a local mock server a
 - **Production crawl:** all 4 pages 200; every internal asset 200; every external link verified (BhuKosh app/API URLs listed but deliberately never requested while its database is paused). The crawl caught one real defect — `/_vercel/insights/script.js` 404ing for every visitor because Vercel Web Analytics wasn't enabled — and the dead tags were removed.
 - **Screenshots:** WikiExplore captures taken with a deterministic headless-Chrome CDP flow, cropped and optimized; BhuKosh's placeholder kept until its backend is resumed.
 - **Admin:** draft autosave/restore, save modal with diff summary and size meter, and the 5-click trigger verified intact after every navigation change (the dot surface never intercepts the clicks).
+- **GitHub imports:** pipeline logic verified with a mocked GitHub/AI/store harness (`node:test`-style assertions — eligibility rules, HMAC signature vectors incl. tamper/wrong-key rejects, AI-output validation stripping injection markup and unsafe URLs, curated-dedupe, idempotent re-import, low-confidence hold, topic-removal unpublish, AI-unconfigured error path); end-to-end in the browser against the local mock server: imported card hydrated in the existing design with empty rows hidden, command palette picks it up, admin Imports panel renders state/last-sync/retry/publish/remove for published and held entries, hide/publish flips reflect on the public endpoint, zero console errors.
 
 ## 10. Commit history (the build log)
 
@@ -167,6 +173,7 @@ The whole build, in order, as pushed:
 11. `89747ba` — README overhaul + `docs/nav-demo.webm`
 12. `65d4a80` — README audit (accuracy fixes)
 13. `66ca9a0` — README voice rewrite
+14. *(this commit)* — **automatic GitHub imports**: topic `portfolio` → webhook → bounded public reads → AI-drafted (strictly validated) cards in a separate store, admin Imports panel, `docs/github-import-setup.md`
 
 ---
 
@@ -208,7 +215,7 @@ The page silently navigates to `/admin/` — a plain login screen. On mobile, ta
 
 **Vercel Firewall rate rule (optional hardening, dashboard-only):** Project → Firewall → *Request Rules* (or Rate Limiting) → create a rule: **Match:** path equals `/api/auth`, method equals `POST`, action **Rate Limit** — allow **5 requests** per **15 minutes** per **IP address**, then **Block** (or challenge) for the window. This makes brute-force throttling global across all serverless instances instead of per-instance.
 
-**Environment variables (production):** `ADMIN_PASSWORD`, `SESSION_SECRET`, `VERCEL_API_TOKEN` + `VERCEL_TEAM_ID` (enables editor saves), plus the auto-injected `GLOBAL_CONFIG` connection string. The code also supports the classic `EDGE_CONFIG_ID` + `EDGE_CONFIG_READ_WRITE_TOKEN` pair if you ever move to a classic Edge Config.
+**Environment variables (production):** `ADMIN_PASSWORD`, `SESSION_SECRET`, `VERCEL_API_TOKEN` + `VERCEL_TEAM_ID` (enables editor saves), plus the auto-injected `GLOBAL_CONFIG` connection string. The code also supports the classic `EDGE_CONFIG_ID` + `EDGE_CONFIG_READ_WRITE_TOKEN` pair if you ever move to a classic Edge Config. Optional GitHub-import vars: `GITHUB_WEBHOOK_SECRET` (webhook), `GITHUB_IMPORT_OWNER` (defaults to `Farzansayeed`), `GITHUB_TOKEN` (rate limits), `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` (drafting) — see `docs/github-import-setup.md`.
 
 ## Stack
 
@@ -264,10 +271,15 @@ portfolio/             — the website itself (Vercel serves this folder)
   og.png               — social share image (generated)
   make_og.py           — regenerates og.png (Pillow; run from inside portfolio/)
 docs/                  — nav-demo.webm (20-second navigation demo, linked above)
+                         github-import-setup.md (automatic GitHub imports: setup + troubleshooting)
 api/                   — serverless functions (Vercel)
   auth.js              — POST login (rate-limited) / DELETE logout
   content.js           — GET public content, PUT authenticated write
+  imports.js           — GET public imported cards, GET admin view, POST retry/remove/publish/hide
+  github-webhook.js    — POST GitHub webhook (signature-verified, repository + push events)
   lib.js               — HMAC sessions, throttle, strict content validator
+  lib-import.js        — imported-projects store, eligibility rules, bounded GitHub reads, import pipeline
+  lib-ai.js            — env-configured AI adapter (fenced untrusted material, strict output validation)
 vercel.json            — outputDirectory, noindex header for /admin, no-store for /api
 ```
 
@@ -276,6 +288,8 @@ Not in the repo: `_qa/` (gitignored) holds local-only QA tooling — a static se
 ## How to update things
 
 **Content (recommended way)** — sign in to `/admin/` (trigger above), edit, save. Changes go live for everyone instantly, no deploy.
+
+**Projects from GitHub (automatic)** — add the topic `portfolio` to a public repo; see section 4b above and `docs/github-import-setup.md` for the one-time setup (GitHub App, webhook, AI env vars) and the admin Imports panel for review/retry/remove.
 
 **Projects (in code)** — the flagship project (BhuKosh) is a full case study: `<article class="case case-flagship">` in `portfolio/index.html` with a metadata row (Role / Team / Timeline / Stack), Problem → My contribution → System design → Key trade-off → Outcome, a screenshot figure (`portfolio/shots/`), and links. The second project follows the same pattern with the shorter row set, and substantial projects can get a dedicated case-study page (`bhukosh.html` / `wikiexplore.html` show the pattern: reading progress, section rail, palette chip). To add a project: duplicate a block, edit the text rows, point the screenshot at a new file in `shots/` — and add it to the `PROJECTS` list at the top of `portfolio/nav.js` so it appears in the command palette. Empty rows and metadata cells hide automatically.
 

@@ -43,6 +43,16 @@
     { label: "WikiExplore live", hint: "Live site", href: "https://wiki-explore.vercel.app", external: true },
   ];
 
+  // Imported projects (GitHub → topic `portfolio` → AI draft) register here at
+  // runtime from content.client.js; the palette reads this list every time it
+  // opens, so nothing else has to change.
+  var IMPORTED = [];
+  document.addEventListener("nav:imported-projects", function (e) {
+    var arr = e && e.detail && e.detail.projects;
+    IMPORTED = Array.isArray(arr) ? arr : [];
+  });
+  window.__pfImportedProjects = function () { return IMPORTED; };
+
   var EXTERNALS = [
     { label: "GitHub",      hint: "External", href: "https://github.com/Farzansayeed" },
     { label: "LinkedIn",    hint: "External", href: "https://www.linkedin.com/in/farzan-sayeed-hashmi-b9876539b/" },
@@ -287,6 +297,9 @@
         cmds.push({ label: s.label, hint: "Section", keywords: s.label.toLowerCase(), run: function () { Observer.jump(s.id); } });
       });
       PROJECTS.forEach(function (p) {
+        cmds.push({ label: p.label, hint: p.hint, keywords: (p.label + " " + p.hint).toLowerCase(), href: p.href, external: p.external });
+      });
+      IMPORTED.forEach(function (p) {
         cmds.push({ label: p.label, hint: p.hint, keywords: (p.label + " " + p.hint).toLowerCase(), href: p.href, external: p.external });
       });
       EXTERNALS.forEach(function (x) {
