@@ -464,6 +464,30 @@ export async function processRepository(opts) {
   const { owner, repo, trigger = "manual", io = null } = opts;
   const store = await readStore(io);
 
+  // Mark the repo as pending FIRST and persist: the webhook acknowledges
+  // before the (slow) AI call finishes, so this row is the user-visible
+  // proof that processing started — and admin Retry works from it even if
+  // the background continuation dies.
+  const pendingKey = normalizeRepoKey(`https://github.com/${owner}/${repo}`);
+  const pendingExisting = store.projects.find(
+    (e) => e.key === pendingKey || String(e.repoId) === String(opts.repoId)
+  );
+  if (trigger === "webhook" && !pendingExisting) {
+    store.projects.push({
+      key: pendingKey,
+      owner,
+      repo,
+      htmlUrl: pendingKey,
+      importedAt: new Date().toISOString(),
+      lastAttemptAt: new Date().toISOString(),
+      status: "pending",
+      published: false,
+      trigger,
+      lastError: "Processing…",
+    });
+    await writeStore(store, io);
+  }
+
   const meta = await ghJson(`/repos/${owner}/${repo}`);
   const now = new Date().toISOString();
 
@@ -686,6 +710,13 @@ export function publicEntries(store) {
   return store.projects
     .filter((e) => e.published === true && e.status === "published" && e.project)
     .map((e) => ({ key: e.key, htmlUrl: e.htmlUrl, importedAt: e.importedAt, project: e.project }));
+}
+
+// Entries with neither a drafted project nor a final verdict are transient:
+// "pending" rows from an in-flight webhook, or stale "pending" rows whose
+// background continuation died. The admin Retry button revives either.
+export function isTransient(entry) {
+  return entry.status === "pending" && !entry.project;
 }
 
 export function ownerName() {
