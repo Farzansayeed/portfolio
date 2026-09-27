@@ -591,7 +591,7 @@ export async function processRepository(opts) {
 
   if (!ai.ok || ai.draft.rejected) {
     const reason = ai.draft && ai.draft.rejected
-      ? `AI declined to draft an entry: ${(ai.draft.errors && ai.draft.errors[0]) || "material not recognizable as a software project"}.`
+      ? `AI declined: ${((ai.draft.errors || []).join(" | ") || "material not recognizable as a software project").slice(0, 200)}.`
       : ai.reason || "AI draft failed.";
     if (existing && existing.project) {
       // Preserve the last good card; just record the failed attempt.
