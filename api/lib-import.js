@@ -240,14 +240,14 @@ async function storeWriteKey(key, value) {
   return false;
 }
 
-async function readStore(io) {
+export async function readStore(io) {
   if (io && io.readStore) return validateStoreShape(await io.readStore());
   return validateStoreShape(await storeReadKey(STORE_KEY));
 }
 
 // Guard: curated content and imports share one Edge Config store (8 KB on the
 // free tier). Refuse the write instead of breaking the curated store.
-async function writeStore(store, io) {
+export async function writeStore(store, io) {
   const json = JSON.stringify(store);
   if (json.length > MAX_STORE_CHARS) return { ok: false, reason: `Import store over its ${Math.round(MAX_STORE_CHARS / 1024)} KB budget.` };
   if (io && io.writeStore) {
