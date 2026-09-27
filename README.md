@@ -191,7 +191,7 @@ The page silently navigates to `/admin/` — a plain login screen. On mobile, ta
 
 | Environment | Password | Where it lives |
 |---|---|---|
-| **Production** (deployed site) | `Farzan-Portfolio-2029!edit` | Vercel env var `ADMIN_PASSWORD` (server-side only — it appears nowhere in shipped JS/HTML) |
+| **Production** (deployed site) | `SFfam@261016` | Vercel env var `ADMIN_PASSWORD` (server-side only — it appears nowhere in shipped JS/HTML) |
 
 > ⚠️ **If this repository is ever made public, change the production password first** (`vercel env add ADMIN_PASSWORD production`, enter the new value, then redeploy). The hidden trigger is convenience only — all editing requires the password server-side; discovering `/admin/` or the trigger grants nothing.
 
