@@ -19,7 +19,10 @@
 //     memory per serverless instance, plus a module-level cooldown after a
 //     failure so a misbehaving repo cannot trigger repeated expensive calls.
 
-const DEFAULT_TIMEOUT_MS = 55000; // free-tier providers (NVIDIA NIM) can take 40-90s
+// Free-tier providers (NVIDIA NIM) queue requests: measured 40-90s per call.
+// The function window (300s) allows the call plus one automatic retry.
+const DEFAULT_TIMEOUT_MS = 90000;
+const AI_RETRY_ATTEMPTS = 2; // one retry after a timeout
 const MAX_INPUT_CHARS = 6000; // bounded repo material fed to the model
 const MAX_REPLY_CHARS = 4096;
 // Some OpenAI-compatible providers (e.g. NVIDIA NIM build.amazon-style hosts)
@@ -131,7 +134,7 @@ export function buildPrompt(material) {
 
 // ---------- request ----------
 
-export async function callAI(material) {
+export async function callAI(material, attempt = 1) {
   const c = config();
   if (!aiConfigured()) {
     return { ok: false, reason: "AI not configured (AI_API_KEY / AI_BASE_URL / AI_MODEL)." };
@@ -169,7 +172,13 @@ export async function callAI(material) {
       signal: ctrl.signal,
     });
   } catch (e) {
+    clearTimeout(timer);
     const isTimeout = e && e.name === "AbortError";
+    // Free-tier queues are bursty: a pure timeout gets one automatic retry
+    // (the next attempt often lands in seconds), other errors back off hard.
+    if (isTimeout && attempt < AI_RETRY_ATTEMPTS) {
+      return callAI(material, attempt + 1);
+    }
     backoff.set(
       `${material.owner}/${material.repo}`.toLowerCase(),
       Date.now() + (isTimeout ? TIMEOUT_BACKOFF_MS : BACKOFF_MS)
@@ -177,12 +186,11 @@ export async function callAI(material) {
     return {
       ok: false,
       reason: isTimeout
-        ? `AI timed out after ${Math.round(DEFAULT_TIMEOUT_MS / 1000)}s (provider queue) — press Retry.`
+        ? `AI timed out twice (${Math.round(DEFAULT_TIMEOUT_MS / 1000)}s each) — provider queue. Press Retry.`
         : "AI request failed (network).",
     };
-  } finally {
-    clearTimeout(timer);
   }
+  clearTimeout(timer);
 
   if (!res.ok) {
     // Never log the key or the body; a status code is enough for debugging.
