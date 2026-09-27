@@ -1,4 +1,18 @@
 {
   "version": 1,
-  "projects": []
+  "projects": [
+    {
+      "key": "https://github.com/farzansayeed/c-learning-roadmap",
+      "repoId": 1345318477,
+      "owner": "Farzansayeed",
+      "repo": "c-learning-roadmap",
+      "htmlUrl": "https://github.com/Farzansayeed/c-learning-roadmap",
+      "importedAt": "2026-09-27T12:16:44.977Z",
+      "trigger": "webhook",
+      "lastAttemptAt": "2026-09-27T12:16:44.977Z",
+      "status": "pending",
+      "published": false,
+      "lastError": "Queued by webhook — processing on the next site visit or admin check."
+    }
+  ]
 }
