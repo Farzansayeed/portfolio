@@ -1,4 +1,18 @@
 {
   "version": 1,
-  "projects": []
+  "projects": [
+    {
+      "key": "https://github.com/farzansayeed/portfolio-import-test",
+      "repoId": 1390443870,
+      "owner": "Farzansayeed",
+      "repo": "portfolio-import-test",
+      "htmlUrl": "https://github.com/Farzansayeed/portfolio-import-test",
+      "importedAt": "2026-09-27T09:15:33.940Z",
+      "trigger": "webhook",
+      "lastAttemptAt": "2026-09-27T09:15:33.940Z",
+      "status": "pending",
+      "published": false,
+      "lastError": "Queued by webhook — processing on the next site visit or admin check."
+    }
+  ]
 }
