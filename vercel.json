@@ -14,5 +14,9 @@
         { "key": "Cache-Control", "value": "no-store" }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/github-webhook.js": { "maxDuration": 60 },
+    "api/imports.js": { "maxDuration": 60 }
+  }
 }
