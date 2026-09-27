@@ -19,7 +19,7 @@
 //     memory per serverless instance, plus a module-level cooldown after a
 //     failure so a misbehaving repo cannot trigger repeated expensive calls.
 
-const DEFAULT_TIMEOUT_MS = 45000;
+const DEFAULT_TIMEOUT_MS = 55000; // free-tier providers (NVIDIA NIM) can take 40-90s
 const MAX_INPUT_CHARS = 6000; // bounded repo material fed to the model
 const MAX_REPLY_CHARS = 4096;
 // Some OpenAI-compatible providers (e.g. NVIDIA NIM build.amazon-style hosts)
@@ -33,8 +33,11 @@ const DISABLE_THINKING = process.env.AI_DISABLE_THINKING === "1";
 const memo = new Map(); // "owner/repo@sha" -> { draft, at }
 const MEMO_TTL_MS = 10 * 60 * 1000;
 // After a failure for a given repo, back off before trying again (cost guard).
+// Definitive failures (bad key, invalid replies) back off 5 minutes; pure
+// timeouts are usually queue jitter, so they only back off 1 minute.
 const backoff = new Map(); // "owner/repo" -> retry-not-before epoch ms
 const BACKOFF_MS = 5 * 60 * 1000;
+const TIMEOUT_BACKOFF_MS = 60 * 1000;
 
 function config() {
   return {
@@ -166,8 +169,17 @@ export async function callAI(material) {
       signal: ctrl.signal,
     });
   } catch (e) {
-    backoff.set(`${material.owner}/${material.repo}`.toLowerCase(), Date.now() + BACKOFF_MS);
-    return { ok: false, reason: "AI request failed (network/timeout)." };
+    const isTimeout = e && e.name === "AbortError";
+    backoff.set(
+      `${material.owner}/${material.repo}`.toLowerCase(),
+      Date.now() + (isTimeout ? TIMEOUT_BACKOFF_MS : BACKOFF_MS)
+    );
+    return {
+      ok: false,
+      reason: isTimeout
+        ? `AI timed out after ${Math.round(DEFAULT_TIMEOUT_MS / 1000)}s (provider queue) — press Retry.`
+        : "AI request failed (network).",
+    };
   } finally {
     clearTimeout(timer);
   }
