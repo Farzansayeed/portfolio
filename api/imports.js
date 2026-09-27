@@ -16,6 +16,7 @@ import {
   writeStore,
   publicEntries,
   processRepository,
+  diagnoseImports,
 } from "./lib-import.js";
 
 export { maxDuration } from "./lib-import.js"; // admin retry can call slow AI
@@ -49,6 +50,11 @@ export default async function handler(req, res) {
     const body = await readJsonBody(req, 4096);
     const action = body && body.action;
     const key = body && typeof body.key === "string" ? body.key : "";
+
+    if (action === "diagnose") {
+      const report = await diagnoseImports();
+      return json(res, 200, { ok: true, report });
+    }
 
     if (action === "retry") {
       const store = await readStore();

@@ -842,6 +842,38 @@
         b.textContent = label;
         return b;
       }
+      var diag = mkBtn("Diagnose", "");
+      diag.addEventListener("click", function () {
+        var statusEl = el("import-status");
+        if (statusEl) { statusEl.textContent = "Running diagnostics…"; statusEl.className = "status"; }
+        fetch("/api/imports", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ action: "diagnose" }),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (statusEl && d && d.ok && d.report) {
+              var r = d.report;
+              var bits = [
+                "store read: " + (r.store.read && r.store.read.ok ? "ok " + r.store.read.ms + "ms" : "FAIL " + ((r.store.read && r.store.read.reason) || "")),
+                "store write: " + (r.store.write && r.store.write.ok ? "ok " + r.store.write.ms + "ms" : "FAIL " + ((r.store.write && r.store.write.reason) || "")),
+                "github: " + (r.github && r.github.ok ? "ok " + r.github.ms + "ms" : "FAIL " + ((r.github && r.github.note) || r.github.status || "")),
+                "ai: " + (r.ai && r.ai.ok ? "ok " + r.ai.ms + "ms" : (r.ai && r.ai.configured ? "FAIL " + ((r.ai && r.ai.reason) || "") : "not configured")),
+              ];
+              statusEl.textContent = bits.join("  ·  ");
+              statusEl.className = "status " + (r.store.write && r.store.write.ok ? "ok" : "err");
+            } else if (statusEl) {
+              statusEl.textContent = (d && d.error) || "Diagnostics failed.";
+              statusEl.className = "status err";
+            }
+          })
+          .catch(function () {
+            if (statusEl) { statusEl.textContent = "Diagnostics network error."; statusEl.className = "status err"; }
+          });
+      });
+      actions.appendChild(diag);
       var link = document.createElement("a");
       link.className = "btn small ghost";
       link.href = entry.htmlUrl || entry.key;
@@ -923,11 +955,10 @@
         if (statusEl) {
           statusEl.textContent = "Could not load imports.";
           statusEl.className = "status err";
-      }
+        }
       });
   }
 
-  var importsWired = false;
   function wireImports() {
     if (importsWired) return;
     importsWired = true;

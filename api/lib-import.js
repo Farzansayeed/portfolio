@@ -719,6 +719,78 @@ export function isTransient(entry) {
   return entry.status === "pending" && !entry.project;
 }
 
+// ---------- diagnostics (admin-only, no secrets in the report) ----------
+
+// Probes each dependency the pipeline needs — store read, store write,
+// GitHub API, AI provider — and reports timing/status per leg. Values returned
+// are booleans, timings, and short reasons only; never keys or tokens.
+export async function diagnoseImports() {
+  const out = { owner: OWNER, store: {}, github: {}, ai: {} };
+
+  const t0 = Date.now();
+  try {
+    const store = await readStore();
+    out.store.read = { ok: true, entries: store.projects.length, ms: Date.now() - t0 };
+  } catch (e) {
+    out.store.read = { ok: false, reason: String((e && e.message) || e).slice(0, 120) };
+  }
+
+  const t1 = Date.now();
+  try {
+    const store = await readStore();
+    const w = await writeStore(store); // no-op rewrite of the current state
+    out.store.write = { ok: w.ok, reason: w.reason || null, ms: Date.now() - t1 };
+  } catch (e) {
+    out.store.write = { ok: false, reason: String((e && e.message) || e).slice(0, 120) };
+  }
+
+  const t2 = Date.now();
+  try {
+    const gh = await ghJson(`/repos/${OWNER}/portfolio`);
+    out.github = {
+      ok: gh.ok,
+      status: gh.status,
+      authenticated: Boolean(GITHUB_TOKEN),
+      ms: Date.now() - t2,
+      note: gh.ok ? null : gh.status === 403 ? "rate limited — add/refresh GITHUB_TOKEN" : "GitHub API unreachable",
+    };
+  } catch (e) {
+    out.github = { ok: false, reason: String((e && e.message) || e).slice(0, 120) };
+  }
+
+  const t3 = Date.now();
+  try {
+    const ai = await callAI({
+      owner: OWNER,
+      repo: "diagnostic-probe",
+      repoId: 0,
+      sha: "probe",
+      description: "Diagnostic connectivity probe for the import pipeline.",
+      language: "",
+      languages: "",
+      topics: "",
+      homepage: "",
+      meta: null,
+      metaFile: "",
+      readme: "This is a connectivity probe. Answer with the JSON shape requested.",
+      manifests: "",
+      htmlUrl: `https://github.com/${OWNER}/diagnostic-probe`,
+    });
+    out.ai = {
+      ok: ai.ok,
+      reason: ai.reason || null,
+      cached: Boolean(ai.cached),
+      draftOk: Boolean(ai.draft && !ai.draft.rejected),
+      ms: Date.now() - t3,
+      configured: aiConfigured(),
+    };
+  } catch (e) {
+    out.ai = { ok: false, configured: aiConfigured(), reason: String((e && e.message) || e).slice(0, 120) };
+  }
+
+  return out;
+}
+
 export function ownerName() {
   return OWNER;
 }
