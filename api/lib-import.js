@@ -485,30 +485,6 @@ export async function processRepository(opts) {
   const { owner, repo, trigger = "manual", io = null } = opts;
   const store = await readStore(io);
 
-  // Mark the repo as pending FIRST and persist: the webhook acknowledges
-  // before the (slow) AI call finishes, so this row is the user-visible
-  // proof that processing started — and admin Retry works from it even if
-  // the background continuation dies.
-  const pendingKey = normalizeRepoKey(`https://github.com/${owner}/${repo}`);
-  const pendingExisting = store.projects.find(
-    (e) => e.key === pendingKey || String(e.repoId) === String(opts.repoId)
-  );
-  if (trigger === "webhook" && !pendingExisting) {
-    store.projects.push({
-      key: pendingKey,
-      owner,
-      repo,
-      htmlUrl: pendingKey,
-      importedAt: new Date().toISOString(),
-      lastAttemptAt: new Date().toISOString(),
-      status: "pending",
-      published: false,
-      trigger,
-      lastError: "Processing…",
-    });
-    await writeStore(store, io);
-  }
-
   const meta = await ghJson(`/repos/${owner}/${repo}`);
   const now = new Date().toISOString();
 
@@ -702,9 +678,11 @@ export async function processRepository(opts) {
   return { ok: true, action: published ? "published" : "held", status: entry.status };
 }
 
-// Push events: refresh tracked repos; process newly-eligible ones. Cooldown
-// guards against push storms; the owner filter rejects everyone else instantly.
-export async function handlePushEvent(repoPayload, io = null) {
+// Push events carry a `commits` array — a repo whose head commit added its
+// README/topic is exactly the "created before it was ready" case the queue
+// handles: the delivery marks the repo pending/queued and the next live
+// request processes it. Cooldown guards against push storms.
+export async function queuePushEvent(repoPayload, io = null) {
   if (!ownerMatches(repoPayload)) return { ok: true, action: "skipped", reason: "owner" };
   const k = `${repoPayload.owner.login}/${repoPayload.name}`.toLowerCase();
   const now = Date.now();
@@ -716,13 +694,128 @@ export async function handlePushEvent(repoPayload, io = null) {
   const key = normalizeRepoKey(repoPayload.html_url);
   const tracked = store.projects.some((e) => e.key === key || String(e.repoId) === String(repoPayload.id));
   if (!tracked && !isEligible(repoPayload)) return { ok: true, action: "skipped", reason: "not eligible" };
-  return processRepository({ owner: repoPayload.owner.login, repo: repoPayload.name, trigger: "push", io });
+  if (repoPayload.deleted === true) {
+    // push to a deleted ref — nothing to do
+    return { ok: true, action: "skipped", reason: "deleted ref" };
+  }
+  return recordWebhookPending(repoPayload, "push", io);
 }
 
-export async function handleRepositoryEvent(repoPayload, io = null) {
+// Repository events: eligibility policy lives in recordWebhookPending (it
+// unpublishes ineligible-but-tracked repos instead of queueing them).
+export async function queueRepositoryEvent(repoPayload, io = null) {
   if (!ownerMatches(repoPayload)) return { ok: true, action: "skipped", reason: "owner" };
   if (!repoPayload.name || !repoPayload.owner) return { ok: true, action: "skipped", reason: "malformed" };
-  return processRepository({ owner: repoPayload.owner.login, repo: repoPayload.name, trigger: "webhook", io });
+  return recordWebhookPending(repoPayload, "webhook", io);
+}
+
+// Webhook fast path: record the delivery as a 'pending' row (or a refresh
+// marker for already-imported repos) and return. The platform freezes
+// serverless functions after the response, so the slow AI work cannot run
+// after res.end() — instead, subsequent live requests drain the queue inside
+// their own request window via drainPending().
+export async function recordWebhookPending(repoPayload, trigger = "webhook", io = null) {
+  if (!ownerMatches(repoPayload) || !repoPayload.name || !repoPayload.owner) {
+    return { ok: true, action: "skipped", reason: "owner" };
+  }
+  const store = await readStore(io);
+  const key = normalizeRepoKey(repoPayload.html_url || `https://github.com/${repoPayload.owner.login}/${repoPayload.name}`);
+  const existing = store.projects.find((e) => e.key === key || String(e.repoId) === String(repoPayload.id));
+
+  // Ineligible delivery (topic removed / privatized / archived / fork):
+  // unpublish a tracked card immediately; never queue anything new.
+  if (!isEligible(repoPayload)) {
+    if (existing) {
+      existing.published = false;
+      existing.status = "unpublished";
+      existing.lastAttemptAt = new Date().toISOString();
+      existing.lastError = "Not eligible (missing `portfolio` topic, or not public/owner repo) — card unpublished.";
+      delete existing.refreshQueued;
+      const w = await writeStore(store, io);
+      return w.ok ? { ok: true, action: "unpublished" } : { ok: false, reason: w.reason };
+    }
+    return { ok: true, action: "skipped", reason: "not eligible" };
+  }
+
+  const now = new Date().toISOString();
+
+  // Already imported: queue a refresh. The live card stays visible until the
+  // drain replaces (or preserves) it.
+  if (existing && existing.project && existing.status !== "pending") {
+    if (existing.refreshQueued) return { ok: true, action: "already-queued" };
+    existing.refreshQueued = true;
+    const w = await writeStore(store, io);
+    return w.ok ? { ok: true, action: "queued" } : { ok: false, reason: w.reason };
+  }
+
+  if (existing && existing.status === "pending") {
+    return { ok: true, action: "already-pending" };
+  }
+
+  const entry = existing || {
+    key,
+    repoId: repoPayload.id,
+    owner: repoPayload.owner.login,
+    repo: repoPayload.name,
+    htmlUrl: repoPayload.html_url || key,
+    importedAt: now,
+    trigger,
+  };
+  entry.repoId = repoPayload.id;
+  entry.owner = repoPayload.owner.login;
+  entry.repo = repoPayload.name;
+  entry.htmlUrl = repoPayload.html_url || key;
+  entry.lastAttemptAt = now;
+  entry.status = "pending";
+  entry.published = entry.published === true;
+  entry.lastError = "Queued by webhook — processing on the next site visit or admin check.";
+  if (existing) Object.assign(existing, entry);
+  else store.projects.push(entry);
+  const w = await writeStore(store, io);
+  return w.ok ? { ok: true, action: "pending" } : { ok: false, reason: w.reason };
+}
+
+// Per-instance in-flight lock: concurrent requests never process the same
+// job twice on one instance. Cross-instance duplicates are possible but rare
+// on a personal site, and the AI memo/backoff maps bound the cost.
+const draining = new Set();
+
+// Called from live request contexts (GET /api/imports): synchronously process
+// up to `limit` pending/refresh jobs inside the caller's request window.
+// Cheap when the queue is empty (the single store read the caller needs
+// anyway). Returns the (fresh) store so the caller can serve from it.
+export async function drainPending(limit = 1, io = null) {
+  const store = await readStore(io);
+  const jobs = store.projects
+    .filter((e) => e.status === "pending" || e.refreshQueued === true)
+    .filter((e) => !draining.has(e.key))
+    .slice(0, limit);
+  if (!jobs.length) return { processed: 0, results: [], store };
+
+  const results = [];
+  for (const job of jobs) {
+    draining.add(job.key);
+    try {
+      const r = await processRepository({ owner: job.owner, repo: job.repo, trigger: job.trigger || "webhook", io });
+      results.push({ repo: job.repo, action: r.action || (r.ok ? "done" : "failed"), reason: r.reason || null });
+    } catch (e) {
+      results.push({ repo: job.repo, action: "failed", reason: String((e && e.message) || e).slice(0, 120) });
+    } finally {
+      draining.delete(job.key);
+    }
+  }
+
+  // Clear refresh markers (processRepository does not know about them).
+  let changed = false;
+  const fresh = await readStore(io);
+  for (const e of fresh.projects) {
+    if (e.refreshQueued && !draining.has(e.key) && e.status !== "pending") {
+      delete e.refreshQueued;
+      changed = true;
+    }
+  }
+  if (changed) await writeStore(fresh, io);
+  return { processed: results.length, results, store: fresh };
 }
 
 // ---------- public projection ----------

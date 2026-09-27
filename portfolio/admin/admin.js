@@ -941,15 +941,30 @@
       });
   }
 
-  function loadImports() {
+  function loadImports(opts) {
     var statusEl = el("import-status");
-    return fetch("/api/imports?view=admin", { credentials: "same-origin" })
+    var drain = opts && opts.drain;
+    var url = "/api/imports?view=admin" + (drain ? "&drain=1" : "");
+    if (drain && statusEl) {
+      statusEl.textContent = "Processing queued imports — this can take a couple of minutes (AI provider is slow)…";
+      statusEl.className = "status";
+    }
+    return fetch(url, { credentials: "same-origin" })
       .then(function (r) {
         if (r.status === 401) { showLogin(); return null; }
         return r.json();
       })
       .then(function (d) {
-        if (d && d.ok && d.admin) renderImports(d.entries);
+        if (d && d.ok && d.admin) {
+          renderImports(d.entries);
+          if (statusEl && drain) {
+            var results = (d.results || []).map(function (r) { return r.repo + ": " + r.action; });
+            statusEl.textContent = d.drained
+              ? "Processed " + d.drained + " import" + (d.drained === 1 ? "" : "s") + " — " + results.join(", ")
+              : "Nothing queued — imports are up to date.";
+            statusEl.className = "status ok";
+          }
+        }
       })
       .catch(function () {
         if (statusEl) {
@@ -963,14 +978,23 @@
     if (importsWired) return;
     importsWired = true;
     var refresh = el("import-refresh");
-    if (refresh) refresh.addEventListener("click", loadImports);
+    if (refresh) refresh.addEventListener("click", function () { loadImports({ drain: true }); });
   }
 
-  // navigate() hook: load imports when the page is shown
+  // navigate() hook: opening the page shows state, then drains any queued
+  // imports (a webhook delivery only records intent; page visits process it).
   var _navigate = navigate;
   navigate = function (route, push) {
     _navigate(route, push);
-    if (route === "imports") { wireImports(); loadImports(); }
+    if (route === "imports") {
+      wireImports();
+      loadImports().then(function () {
+        var listText = (el("import-list") || {}).textContent || "";
+        if (listText.indexOf("pending") !== -1 || listText.indexOf("Queued") !== -1) {
+          loadImports({ drain: true });
+        }
+      });
+    }
   };
 
   function init() {

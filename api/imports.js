@@ -17,9 +17,13 @@ import {
   publicEntries,
   processRepository,
   diagnoseImports,
+  drainPending,
 } from "./lib-import.js";
 
-export { maxDuration } from "./lib-import.js"; // admin retry can call slow AI
+export { maxDuration } from "./lib-import.js"; // draining/retry can call slow AI
+
+// Public visitor requests never wait on the AI. A separate lightweight ping
+// (below) is what actually drains the queue in visitor-driven mode.
 
 function keyFromQuery(req) {
   try {
@@ -35,7 +39,22 @@ function findEntry(store, key) {
 
 export default async function handler(req, res) {
   if (req.method === "GET") {
-    const isAdminView = new URL(req.url, "http://x").searchParams.get("view") === "admin";
+    const url = new URL(req.url, "http://x");
+    const isAdminView = url.searchParams.get("view") === "admin";
+    // ?drain=1 is the processing trigger: an explicit request (the admin
+    // panel calls it automatically; it can also be opened manually) that
+    // synchronously processes queued imports inside this live request —
+    // up to 2 per call, each with up to ~3min of AI budget (90s x2 retry).
+    if (url.searchParams.get("drain") === "1") {
+      const d = await drainPending(2);
+      const store = await readStore();
+      return json(res, 200, {
+        ok: true,
+        drained: d.processed,
+        results: d.results,
+        entries: isAdminView && isAuthed(req) ? store.projects : undefined,
+      });
+    }
     if (isAdminView) {
       if (!isAuthed(req)) return json(res, 401, { ok: false, error: "Unauthorized." });
       const store = await readStore();

@@ -16,8 +16,8 @@ import {
   verifyWebhookSignature,
   readRawBody,
   parseWebhookBody,
-  handleRepositoryEvent,
-  handlePushEvent,
+  queueRepositoryEvent,
+  queuePushEvent,
 } from "./lib-import.js";
 import { json } from "./lib.js";
 
@@ -91,21 +91,26 @@ export default async function handler(req, res) {
     return json(res, 200, { ok: true, handled: false, reason: "no repository in payload" });
   }
 
-  // GitHub expects fast webhook responses; AI providers on free tiers can take
-  // 40-90s. Acknowledge immediately, then let the pipeline finish in the
-  // background — Fluid compute keeps the function alive until pending work
-  // drains (within maxDuration). Storage and AI failures are recorded in the
-  // admin Imports view either way.
-  const run = (event === "push"
-    ? handlePushEvent(repoPayload)
-    : handleRepositoryEvent(repoPayload)
-  ).catch((e) => console.error("webhook pipeline error:", e && (e.message || String(e))));
+  // GitHub expects fast webhook responses, and the platform freezes the
+  // function after the response — slow AI work cannot run post-res.end().
+  // So the delivery is only RECORDED here (a quick signed store commit) and
+  // actual processing happens on the next live request (site visit or admin
+  // check) via drainPending() in /api/imports. Failures land in the admin
+  // Imports view with a working Retry.
+  let result;
+  try {
+    result =
+      event === "push"
+        ? await queuePushEvent(repoPayload)
+        : await queueRepositoryEvent(repoPayload);
+  } catch (e) {
+    console.error("webhook queue error:", e && (e.message || String(e)));
+    return json(res, 200, { ok: false, error: "queue error recorded" });
+  }
 
-  res.statusCode = 202;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.setHeader("Cache-Control", "no-store");
-  res.end(JSON.stringify({ ok: true, accepted: true, processing: "background" }));
-
-  // Keep a reference so the runtime sees the pending promise; never rethrow.
-  await run;
+  if (result && result.ok) {
+    return json(res, 202, { ok: true, action: result.action });
+  }
+  console.error("webhook queue failure:", result && result.reason);
+  return json(res, 200, { ok: false, error: "recorded" });
 }
