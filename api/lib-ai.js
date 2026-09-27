@@ -166,7 +166,10 @@ export async function callAI(material, attempt = 1) {
           { role: "user", content: user },
         ],
         temperature: 0.2,
-        max_tokens: 700,
+        // Reasoning models (GLM/Kimi on NVIDIA NIM) can spend several hundred
+        // tokens thinking even with thinking disabled; leave room for the JSON
+        // answer on top of the reasoning budget.
+        max_tokens: 1600,
         ...(DISABLE_THINKING ? { chat_template_kwargs: { thinking: false } } : {}),
       }),
       signal: ctrl.signal,
@@ -207,7 +210,15 @@ export async function callAI(material, attempt = 1) {
   }
 
   const message = payload && payload.choices && payload.choices[0] && payload.choices[0].message;
-  const text = message ? String(message.content || "") : "";
+  let text = message ? String(message.content || "") : "";
+  if (!text && message && message.reasoning_content) {
+    // Reasoning-model fallback: some providers return the answer inside
+    // reasoning content (or exhaust the budget mid-reasoning after writing
+    // the JSON). Extract the last JSON-looking object and let the strict
+    // validator decide — malformed or unsafe output is still rejected.
+    const m = /\{[\s\S]*\}/.exec(String(message.reasoning_content));
+    if (m) text = m[0];
+  }
   if (!text || text.length > MAX_REPLY_CHARS) {
     // Reasoning models that exhaust max_tokens before answering return
     // content: null with reasoning_content filled — surface that clearly.
