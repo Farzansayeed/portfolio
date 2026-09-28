@@ -38,7 +38,8 @@
             "url": "https://c-learning-roadmap.vercel.app"
           }
         ]
-      }
+      },
+      "refreshQueued": true
     }
   ]
 }
